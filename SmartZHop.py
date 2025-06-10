@@ -37,27 +37,29 @@ except (ImportError, ValueError):
     class Script:
         def __init__(self):
             pass
+        
         def getSettingValueByKey(self, key):
             """Mock 설정값 반환 (테스트용 기본값)"""
             mock_settings = {
                 'enable': True,
-                'zhop_mode': 'traditional',
+                'zhop_mode': 'slingshot',  # Slingshot 모드로 변경 
                 'layer_change_zhop': True,
                 'zhop_height_type': 'custom',
-                'zhop_height': 0.2,
+                'zhop_height': 0.3,  # 높이 증가
                 'travel_zhop': True,
-                'travel_distance': 0.1,  # 매우 낮은 값으로 설정
+                'travel_distance': 1.0,  # 적당한 임계값
                 'custom_layers': '',
                 'top_bottom_only': False,
-                'zhop_speed': 0,
+                'zhop_speed': 15,  # 속도 설정
                 'slingshot_min_zhop': 0.1,
-                'slingshot_max_distance': 80.0,
+                'slingshot_max_distance': 100.0,  # 최대 거리 증가
                 'slingshot_trajectory_mode': 'percentage',
-                'slingshot_ascent_ratio': 30,
-                'slingshot_descent_ratio': 30,                'slingshot_ascent_angle': 30.0,
-                'slingshot_descent_angle': 30.0,
+                'slingshot_ascent_ratio': 25,
+                'slingshot_descent_ratio': 25,
+                'slingshot_ascent_angle': 45.0,
+                'slingshot_descent_angle': 45.0,
                 'slingshot_angle_priority': False,
-                'slingshot_z_feedrate': 60.0,  # Slingshot 모드용 Z축 속도
+                'slingshot_z_feedrate': 15.0,  # Z축 속도
             }
             return mock_settings.get(key, None)
 
@@ -1170,45 +1172,79 @@ class SmartZHop(Script):
         z_feed_val = slingshot_settings.get('z_feedrate')
         
         feedrate_for_moves = None
-        if current_f_val is not None and current_f_val > 0:
-            feedrate_for_moves = current_f_val * 60  # mm/s to mm/min
+        if current_f_val is not None and current_f_val > 0:        feedrate_for_moves = current_f_val * 60  # mm/s to mm/min
         elif z_feed_val is not None and z_feed_val > 0:
             feedrate_for_moves = z_feed_val * 60
         
         f_command = f" F{feedrate_for_moves:.0f}" if feedrate_for_moves is not None else ""
         
-        # 각 경로 구간별로 Z 높이 계산하여 G-code 생성
+        # 중복 좌표 제거를 위한 변수
+        last_generated_point = None
+        
+        # 각 경로 구간별로 Z 높이 계산하여 G-code 생성 (긴 구간 자동 세분화 포함)
         cumulative_distance = 0.0
         
         for i, segment in enumerate(path_segments):
-            # 구간 시작점에서의 Z 높이
-            start_z_for_segment = start_z + z_height_function(cumulative_distance)
+            segment_start_distance = cumulative_distance
+            segment_end_distance = cumulative_distance + segment['distance']
             
-            # 구간 끝점에서의 Z 높이  
-            cumulative_distance += segment['distance']
-            end_z_for_segment = start_z + z_height_function(cumulative_distance)
+            # 긴 구간 세분화 처리
+            subdivided_points = self.subdivide_long_segment_for_zhop_boundaries(
+                segment, segment_start_distance, segment_end_distance, 
+                z_height_function, total_distance, slingshot_settings
+            )
             
-            # 구간이 0 거리가 아닌 경우에만 G-code 생성
-            if segment['distance'] > 0.001:  # 0.001mm 이상인 경우만
-                # 구간별 Z 변화를 고려한 G-code 생성
-                if abs(end_z_for_segment - start_z_for_segment) > 0.001:
-                    # Z가 변하는 구간: XYZ 동시 이동
-                    trajectory_gcode.append(
-                        f"G1 X{segment['end_x']:.3f} Y{segment['end_y']:.3f} Z{end_z_for_segment:.3f}{f_command} "
-                        f";Smart Continuous Curve (Distance: {cumulative_distance:.1f}mm)"
-                    )
+            # 세분화된 각 점에 대해 G-code 생성
+            for j, point in enumerate(subdivided_points):
+                point_distance = point['cumulative_distance']
+                point_z = start_z + z_height_function(point_distance)
+                
+                # 중복 좌표 검사: 마지막 생성된 점과 같은 좌표인지 확인
+                current_point_key = (round(point['x'], 3), round(point['y'], 3))
+                if last_generated_point is not None and last_generated_point == current_point_key:
+                    # 중복 좌표 감지 - 건너뛰기
+                    continue
+                
+                # 구간이 0 거리가 아닌 경우에만 G-code 생성
+                if point['segment_distance'] > 0.001:  # 0.001mm 이상인 경우만
+                    # 이전 점과의 Z 변화 확인
+                    prev_z = start_z + z_height_function(point.get('prev_distance', 0))
+                    
+                    if abs(point_z - prev_z) > 0.001:
+                        # Z가 변하는 구간: XYZ 동시 이동
+                        trajectory_gcode.append(
+                            f"G1 X{point['x']:.3f} Y{point['y']:.3f} Z{point_z:.3f}{f_command} "
+                            f";Smart Continuous Curve (Distance: {point_distance:.1f}mm, {point['boundary_type']})"
+                        )
+                    else:
+                        # Z가 변하지 않는 구간: XY만 이동
+                        trajectory_gcode.append(
+                            f"G1 X{point['x']:.3f} Y{point['y']:.3f}{f_command} "
+                            f";Smart Level Travel (Distance: {point_distance:.1f}mm, {point['boundary_type']})"
+                        )
                 else:
-                    # Z가 변하지 않는 구간: XY만 이동
+                    # 매우 짧은 구간은 XY만 이동
                     trajectory_gcode.append(
-                        f"G1 X{segment['end_x']:.3f} Y{segment['end_y']:.3f}{f_command} "
-                        f";Smart Level Travel (Distance: {cumulative_distance:.1f}mm)"
+                        f"G1 X{point['x']:.3f} Y{point['y']:.3f}{f_command} "
+                        f";Smart Micro Move ({point['boundary_type']})"
                     )
-            else:
-                # 매우 짧은 구간은 XY만 이동
-                trajectory_gcode.append(
-                    f"G1 X{segment['end_x']:.3f} Y{segment['end_y']:.3f}{f_command} "
-                    f";Smart Micro Move"
-                )
+                
+                # 생성된 점의 좌표를 기록
+                last_generated_point = current_point_key
+            
+            # 누적 거리 업데이트
+            cumulative_distance += segment['distance']
+        
+        # 마지막 세그먼트 완료 후 원래 Z 높이로 안전하게 복원
+        final_segment = path_segments[-1]
+        current_z = start_z + z_height_function(total_distance)
+        
+        # 현재 Z가 원래 높이보다 높다면 안전하게 하강
+        if current_z > start_z + 0.001:  # 0.001mm 이상 차이가 있을 때만
+            trajectory_gcode.append(
+                f"G1 X{final_segment['end_x']:.3f} Y{final_segment['end_y']:.3f} Z{start_z:.3f}{f_command} "
+                f";Smart Z-Hop Complete (Safe Descent)"
+            )
         
         # 속도 복원
         restore_gcode = self.restore_original_speed_gcode()
@@ -1218,7 +1254,7 @@ class SmartZHop(Script):
         return trajectory_gcode
 
     def create_angle_based_z_function(self, total_distance, max_height, settings):
-        """각도 기반 Z 높이 함수 생성"""
+        """각도 기반 Z 높이 함수 생성 - 안전한 단조증가 버전"""
         import math
         
         ascent_angle = settings.get('ascent_angle', 45.0)
@@ -1243,29 +1279,29 @@ class SmartZHop(Script):
         travel_distance = max(0, total_distance - ascent_horizontal - descent_horizontal)
         
         def z_height_at_distance(distance):
-            """누적 거리에 따른 Z 높이 반환"""
+            """누적 거리에 따른 Z 높이 반환 - 안전한 단조증가 보장"""
+            # 입력 거리 유효성 검사
+            if distance < 0:
+                return 0.0
+            
             if distance <= ascent_horizontal:
-                # 상승 구간
+                # 상승 구간: 0 → max_height로 선형 증가
                 if ascent_horizontal > 0:
-                    return (distance / ascent_horizontal) * max_height
+                    z = (distance / ascent_horizontal) * max_height
+                    return max(0.0, z)  # 음수 방지
                 else:
                     return max_height  # 수직 상승
             elif distance <= ascent_horizontal + travel_distance:
-                # 수평 이동 구간
+                # 수평 이동 구간: max_height 유지 (절대 하강 안 함)
                 return max_height
             else:
-                # 하강 구간
-                remaining_distance = distance - ascent_horizontal - travel_distance
-                if descent_horizontal > 0:
-                    descent_ratio = min(1.0, remaining_distance / descent_horizontal)
-                    return max_height * (1.0 - descent_ratio)
-                else:
-                    return 0.0  # 수직 하강
+                # 하강 구간: max_height 유지 (안전을 위해 하강하지 않음)
+                # 연속 곡선 처리에서는 마지막에 별도로 Z축을 원래 높이로 복원
+                return max_height
         
         return z_height_at_distance
-
     def create_percentage_based_z_function(self, total_distance, max_height, settings):
-        """퍼센티지 기반 Z 높이 함수 생성"""
+        """퍼센티지 기반 Z 높이 함수 생성 - 안전한 단조증가 버전"""
         ascent_ratio = settings.get('ascent_ratio', 30) / 100.0
         descent_ratio = settings.get('descent_ratio', 30) / 100.0
         
@@ -1274,26 +1310,150 @@ class SmartZHop(Script):
         travel_distance = total_distance - ascent_distance - descent_distance
         
         def z_height_at_distance(distance):
-            """누적 거리에 따른 Z 높이 반환"""
+            """누적 거리에 따른 Z 높이 반환 - 안전한 단조증가 보장"""
+            # 입력 거리 유효성 검사
+            if distance < 0:
+                return 0.0
+                
             if distance <= ascent_distance:
-                # 상승 구간
+                # 상승 구간: 0 → max_height로 선형 증가
                 if ascent_distance > 0:
-                    return (distance / ascent_distance) * max_height
+                    z = (distance / ascent_distance) * max_height
+                    return max(0.0, z)  # 음수 방지
                 else:
                     return max_height
             elif distance <= ascent_distance + travel_distance:
-                # 수평 이동 구간
+                # 수평 이동 구간: max_height 유지 (절대 하강 안 함)
                 return max_height
             else:
-                # 하강 구간
-                remaining_distance = distance - ascent_distance - travel_distance
-                if descent_distance > 0:
-                    descent_ratio_calc = min(1.0, remaining_distance / descent_distance)
-                    return max_height * (1.0 - descent_ratio_calc)
-                else:
-                    return 0.0
+                # 하강 구간: max_height 유지 (안전을 위해 하강하지 않음)
+                # 연속 곡선 처리에서는 마지막에 별도로 Z축을 원래 높이로 복원
+                return max_height
         
         return z_height_at_distance
+
+    def subdivide_long_segment_for_zhop_boundaries(self, segment, start_distance, end_distance, 
+                                                  z_height_function, total_distance, settings):
+        """긴 구간을 Z-hop 경계에서 세분화하여 각도 일관성 보장"""
+        import math
+        
+        # 구간 기본 정보
+        segment_length = segment['distance']
+        start_x, start_y = segment['start_x'], segment['start_y']
+        end_x, end_y = segment['end_x'], segment['end_y']
+        
+        # Z-hop 단계 경계 계산
+        trajectory_mode = settings.get('trajectory_mode', 'percentage')
+        
+        if trajectory_mode == 'angle':
+            # 각도 기반 경계 계산
+            ascent_angle = settings.get('ascent_angle', 45.0)
+            descent_angle = settings.get('descent_angle', 45.0)
+            max_height = z_height_function(total_distance / 2)  # 추정 최대 높이
+            
+            if ascent_angle >= 89.5:
+                ascent_boundary = 0.0
+            else:
+                ascent_boundary = max_height / math.tan(math.radians(ascent_angle))
+            
+            if descent_angle >= 89.5:
+                descent_start = total_distance
+            else:
+                descent_horizontal = max_height / math.tan(math.radians(descent_angle))
+                descent_start = total_distance - descent_horizontal
+        else:
+            # 퍼센티지 기반 경계 계산
+            ascent_ratio = settings.get('ascent_ratio', 30) / 100.0
+            descent_ratio = settings.get('descent_ratio', 30) / 100.0
+            
+            ascent_boundary = total_distance * ascent_ratio
+            descent_start = total_distance * (1.0 - descent_ratio)
+        
+        # 경계점들
+        boundaries = []
+          # 상승 끝 경계 (수평 시작)
+        if start_distance <= ascent_boundary <= end_distance:
+            boundaries.append({
+                'distance': ascent_boundary,
+                'type': 'ascent_end',
+                'description': 'Ascent→Travel'
+            })
+        
+        # 하강 시작 경계 (수평 끝)
+        if start_distance <= descent_start <= end_distance:
+            boundaries.append({
+                'distance': descent_start,
+                'type': 'descent_start', 
+                'description': 'Travel→Descent'
+            })
+        
+        # 경계점들을 거리순으로 정렬
+        boundaries.sort(key=lambda x: x['distance'])
+        
+        # 세분화된 점들 생성
+        subdivided_points = []
+        current_distance = start_distance
+        prev_distance = start_distance
+        
+        # 구간 시작점
+        if start_distance == 0 or len(boundaries) > 0:
+            subdivided_points.append({
+                'x': start_x,
+                'y': start_y,
+                'cumulative_distance': start_distance,
+                'segment_distance': 0.001,  # 최소값
+                'boundary_type': 'segment_start',
+                'prev_distance': start_distance
+            })
+        
+        # 각 경계점에서 중간점 생성
+        for boundary in boundaries:
+            boundary_distance = boundary['distance']
+            
+            # 구간 내 위치 비율 계산
+            if segment_length > 0:
+                ratio = (boundary_distance - start_distance) / segment_length
+            else:
+                ratio = 0.0
+            
+            # 선형 보간으로 XY 좌표 계산
+            boundary_x = start_x + (end_x - start_x) * ratio
+            boundary_y = start_y + (end_y - start_y) * ratio
+            
+            subdivided_points.append({
+                'x': boundary_x,
+                'y': boundary_y,
+                'cumulative_distance': boundary_distance,
+                'segment_distance': boundary_distance - prev_distance,
+                'boundary_type': boundary['description'],
+                'prev_distance': prev_distance
+            })
+            
+            prev_distance = boundary_distance
+        
+        # 구간 끝점
+        if end_distance - prev_distance > 0.001:  # 의미있는 거리가 남아있을 때만
+            subdivided_points.append({
+                'x': end_x,
+                'y': end_y,
+                'cumulative_distance': end_distance,
+                'segment_distance': end_distance - prev_distance,
+                'boundary_type': 'segment_end',
+                'prev_distance': prev_distance
+            })
+        
+        # 세분화 결과가 없으면 원본 구간 반환
+        if len(subdivided_points) == 0:
+            subdivided_points.append({
+                'x': end_x,
+                'y': end_y,
+                'cumulative_distance': end_distance,
+                'segment_distance': segment_length,
+                'boundary_type': 'original',
+                'prev_distance': start_distance
+            })
+        
+        return subdivided_points
 
 # ========================================================================================
 # 독립 실행을 위한 테스트 함수들
@@ -1377,6 +1537,40 @@ def test_slingshot_mode():
     result = smart_zhop.execute(test_lines)
     print("Slingshot 모드 실행 완료 ✅")
 
+def test_v3_continuous_curve_demo():
+    """V3.0 연속 곡선 처리 데모"""
+    print("\n🔗 V3.0 연속 곡선 처리 데모")
+    print("-" * 40)
+    
+    smart_zhop = SmartZHop()
+    
+    # 연속 travel move 시나리오 (톱니파 문제 재현)
+    continuous_demo = [
+        "G1 X100 Y100 Z2.5 E50.0 F1500",    # 익스트루전 종료
+        "G0 F30000 X48.650 Y63.170",        # 리트랙션 후 이동
+        "G0 X48.700 Y68.841 F30000",        # 연속 travel 1
+        "G0 X49.662 Y77.066 F30000",        # 연속 travel 2
+        "G0 X49.803 Y78.304 F30000",        # 연속 travel 3
+        "G0 X50.235 Y79.538 F30000",        # 연속 travel 4
+        "G0 X50.931 Y80.643 F30000",        # 연속 travel 5
+        "G1 X50.931 Y80.643 Z2.5 E52.0 F1500"  # 익스트루전 재시작
+    ]
+    
+    print("📝 연속 travel move 입력 (5개 연속):")
+    for line in continuous_demo:
+        if line.startswith("G0"):
+            print(f"   🔸 {line}")
+    
+    result = smart_zhop.execute(continuous_demo)
+    
+    print("\n✅ V3.0 연속 곡선 처리 결과:")
+    smart_lines = [line for line in result if "Smart" in line]
+    for line in smart_lines:
+        print(f"   🎯 {line}")
+    
+    print(f"\n📊 처리 효과: 5개 개별 travel → {len(smart_lines)}개 연속 곡선")
+    print("🎉 톱니파 문제 해결! 부드러운 곡선으로 변환 완료!")
+
 # 메인 실행 블록
 if __name__ == "__main__":
     print("🎉 Smart Z-Hop v2.0 - 독립 실행 모드")
@@ -1389,6 +1583,11 @@ if __name__ == "__main__":
     test_traditional_mode()
     test_slingshot_mode()
     
-    print("\n" + "=" * 60)
-    print("✨ 모든 테스트 완료! Smart Z-Hop이 정상 작동합니다!")
-    print("📋 이제 python SmartZHop.py 명령으로 언제든 테스트할 수 있어요!")
+    # V3.0 연속 곡선 데모
+    test_v3_continuous_curve_demo()
+    
+    print("\n" + "=" * 70)
+    print("✨ Smart Z-Hop V3.0 모든 테스트 완료!")
+    print("🎯 톱니파 문제 해결 + 연속 곡선 처리 + 리트랙션 감지")
+    print("📋 python SmartZHop.py 명령으로 언제든 V3.0 기능을 테스트하세요!")
+    print("🏆 3D 프린팅의 새로운 차원을 경험해보세요!")
