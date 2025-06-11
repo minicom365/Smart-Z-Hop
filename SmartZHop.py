@@ -167,6 +167,7 @@ def i18n_catalog_i18nc(context, text, category=""):
 class SmartZHop(Script):
     def __init__(self):
         super().__init__()
+        self.original_z_max_feedrate = None  # 원본 Z축 최대 속도 저장
 
     def getSettingDataString(self):
         """완전한 설정 구조 반환 (V1 + V2 + Current 통합)"""
@@ -368,14 +369,17 @@ class SmartZHop(Script):
             i18n_catalog_i18nc("", "Percentage of travel distance for ascent phase"),
             i18n_catalog_i18nc("", "Descent Ratio (Slingshot)"),
             i18n_catalog_i18nc("", "Percentage of travel distance for descent phase"),            i18n_catalog_i18nc("", "Ascent Angle (Smart Mode)"),
-            i18n_catalog_i18nc("", "Ascent angle in degrees"),            i18n_catalog_i18nc("", "Descent Angle (Smart Mode)"),            i18n_catalog_i18nc("", "Descent angle in degrees"),
-            i18n_catalog_i18nc("", "Angle Priority (Smart Mode)"),
+            i18n_catalog_i18nc("", "Ascent angle in degrees"),            i18n_catalog_i18nc("", "Descent Angle (Smart Mode)"),            i18n_catalog_i18nc("", "Descent angle in degrees"),            i18n_catalog_i18nc("", "Angle Priority (Smart Mode)"),
             i18n_catalog_i18nc("", "Prioritize angle over minimum height constraints")
         )
 
     def execute(self, data):
         if not self.getSettingValueByKey("enable"):
             return data
+
+        # 첫 실행 시 원본 Z축 속도 파싱
+        if self.original_z_max_feedrate is None:
+            self.parse_original_z_feedrate(data)
 
         zhop_mode = self.getSettingValueByKey("zhop_mode")
 
@@ -429,6 +433,51 @@ class SmartZHop(Script):
         else: # off or unknown mode
             return data
 
+    def parse_original_z_feedrate(self, data):
+        """G-code에서 원본 Z축 최대 속도 파싱 (단순 병합 처리)"""
+        # 1단계: 모든 SETTING_3 라인을 찾아서 순수 텍스트만 추출
+        setting_parts = []
+        
+        for layer in data:
+            lines = layer.split('\n')
+            for line in lines:
+                if line.startswith(';SETTING_3 '):
+                    # ';SETTING_3 ' 제거하고 나머지 텍스트만 추출 (strip 없이)
+                    setting_content = line[10:]  # ';SETTING_3 ' 제거 (10글자)
+                    setting_parts.append(setting_content)
+        
+        # 2단계: 단순 병합 (글자수 제한으로 잘린 텍스트 복원)
+        if not setting_parts:
+            self.original_z_max_feedrate = 15*60
+            print(f"⚠️ SETTING_3 라인을 찾을 수 없어서 기본값 사용: {self.original_z_max_feedrate/60:.0f} mm/s")
+            return self.original_z_max_feedrate
+        
+        # 단순 병합 (공백이나 추가 처리 없이)
+        combined_settings = ''.join(setting_parts)
+        
+        print(f"🔍 병합된 SETTING_3 내용:")
+        print(f"   병합 결과: {combined_settings[:100]}...")
+        
+        # 3단계: \\n을 실제 줄바꿈으로 변환하여 파싱
+        normalized_settings = combined_settings.replace('\\n', '\n')
+        
+        # 4단계: machine_max_feedrate_z 값 찾기
+        import re
+        match = re.search(r'machine_max_feedrate_z\s*=\s*([\d\.]+)', normalized_settings)
+        
+        if match:
+            z_feedrate = float(match.group(1))
+            # mm/s를 mm/min으로 변환
+            self.original_z_max_feedrate = z_feedrate * 60
+            print(f"🎯 원본 Z축 최대 속도 발견: {z_feedrate} mm/s ({self.original_z_max_feedrate:.0f} mm/min)")
+            return self.original_z_max_feedrate
+        else:
+            # 5단계: 파싱 실패 시 기본값 사용
+            self.original_z_max_feedrate = 4500  # 기본값 (75 mm/s * 60)
+            print(f"⚠️ machine_max_feedrate_z를 찾을 수 없어서 기본값 사용: {self.original_z_max_feedrate:.0f} mm/min")
+            print(f"📋 파싱 대상 텍스트: {normalized_settings}")
+            return self.original_z_max_feedrate
+
     def get_layer_height_from_gcode(self, data_list): # Expects a list of layer gcode strings
         # Simplified: Tries to find G1 Z value in the first few lines of the first layer's G-code
         # This is a very basic approach and might not be robust.
@@ -452,24 +501,25 @@ class SmartZHop(Script):
         # The original execute_standalone had `cura_format_data = [combined_gcode]`
         # We will follow that, assuming gcode_lines is a list of individual gcode commands.
         combined_gcode = '\n'.join(gcode_lines)
-        cura_format_data = [combined_gcode] # Process as a single layer
-
-        # Call the main execute method with this formatted data
+        cura_format_data = [combined_gcode] # Process as a single layer        # Call the main execute method with this formatted data
         # All settings will be pulled from self.getSettingValueByKey (Mock or Cura)
         return self.execute(cura_format_data)
 
     def get_zhop_speed_gcode(self, speed):
-        """M203 명령을 사용한 Z-홉 속도 제어 G-code 생성"""
+        """M203 명령을 사용한 Z-홉 속도 제어 G-code 생성 (개선된 버전)"""
         if speed <= 0:
-            return ""  # 0이면 속도 제한 없음
-        
-        # mm/s를 mm/min으로 변환 (M203은 mm/min 단위)
+            return ""  # 0이면 속도 제한 없음 (무제한)
+          # mm/s를 mm/min으로 변환 (M203은 mm/min 단위)
         speed_mm_min = speed * 60
-        return f"M203 Z{speed_mm_min} ; Set Z-axis speed limit for Z-hop"
+        return f"M203 Z{speed_mm_min:.0f} ; Set Z-axis speed limit for Z-hop ({speed:.1f} mm/s)"
 
     def restore_original_speed_gcode(self):
-        """원래 Z축 속도 복원을 위한 G-code 생성"""
-        return "M203 Z15000 ; Restore original Z-axis speed"  # 기본 고속 제한값
+        """원래 Z축 속도 복원을 위한 G-code 생성 (개선된 버전)"""
+        # 원본 속도가 파싱되지 않았다면 복원하지 않음
+        if self.original_z_max_feedrate is None:
+            return ""  # 원본 속도를 모르면 복원하지 않음
+        
+        return f"M203 Z{self.original_z_max_feedrate:.0f} ; Restore original Z-axis speed ({self.original_z_max_feedrate/60:.1f} mm/s)"
 
     def execute_traditional_mode(self, data, zhop_height, zhop_speed, layer_change_zhop, 
                                travel_zhop, travel_distance, custom_layer_list, top_bottom_only):
@@ -508,18 +558,18 @@ class SmartZHop(Script):
                     elif top_bottom_only:
                         tr_layer = (layer_index == 0 or layer_index == total_layers - 1)
 
-                # 레이어 변경 Z-hop 준비 (원본 방식)
-                if layer_change_zhop and lc_line:
-                    # 속도 제어 적용
+                # 레이어 변경 Z-hop 준비 (원본 방식)                if layer_change_zhop and lc_line:
+                    # 속도 제어 적용 (조건부: 속도 설정이 있고 원본 속도가 파싱된 경우만)
                     speed_prefix = ""
                     speed_suffix = ""
-                    speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
-                    if speed_gcode:
-                        speed_prefix = speed_gcode + "\n"
-                    
-                    restore_gcode = self.restore_original_speed_gcode()
-                    if restore_gcode:
-                        speed_suffix = "\n" + restore_gcode
+                    if zhop_speed > 0 and self.original_z_max_feedrate is not None:
+                        speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
+                        if speed_gcode:
+                            speed_prefix = speed_gcode + "\n"
+                        
+                        restore_gcode = self.restore_original_speed_gcode()
+                        if restore_gcode:
+                            speed_suffix = "\n" + restore_gcode
                     
                     # Z-홉 G-code 준비
                     lc_gcode = f"{speed_prefix}G0 Z{current_z + zhop_height:.2f};Smart Z-Hop Layer Change\n{line}{speed_suffix}\n"
@@ -540,7 +590,6 @@ class SmartZHop(Script):
                     # G0 이동 명령 처리
                     if (self.getValue(line, 'G') == 0 and g1_saved):
                         g1_saved = False  # 원본처럼 즉시 False로 설정
-                        
                         if (self.getValue(line, "X") is not None and 
                             self.getValue(line, "Y") is not None and 
                             self.getValue(line, "Z") is None):
@@ -550,17 +599,19 @@ class SmartZHop(Script):
                             distance = self.calculate_distance(saved_x, saved_y, target_x, target_y)
                             
                             if distance >= travel_distance:
-                                # 속도 제어 적용
+                                # 속도 제어 적용 (조건부: 속도 설정이 있고 원본 속도가 파싱된 경우만)
                                 speed_prefix = ""
                                 speed_suffix = ""
-                                speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
-                                if speed_gcode:
-                                    speed_prefix = speed_gcode + "\n"
+                                if zhop_speed > 0 and self.original_z_max_feedrate is not None:
+                                    speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
+                                    if speed_gcode:
+                                        speed_prefix = speed_gcode + "\n"
+                                    
+                                    restore_gcode = self.restore_original_speed_gcode()
+                                    if restore_gcode:
+                                        speed_suffix = "\n" + restore_gcode
                                 
-                                restore_gcode = self.restore_original_speed_gcode()
-                                if restore_gcode:
-                                    speed_suffix = "\n" + restore_gcode
-                                
+
                                 # Z-hop G-code 준비
                                 tr_gcode = f"{speed_prefix}G0 Z{current_z + zhop_height:.2f};Smart Z-Hop Travel Up, D:{distance:.2f}\n"
                                 tr_gcode += line + "\n"
@@ -637,7 +688,7 @@ class SmartZHop(Script):
                         is_first_travel_after_retraction = True
                     else:
                         is_first_travel_after_retraction = False
-                
+                        
                 # Tentative target coordinates from the current line
                 # These will become the new actual_current_x,y,z if the line is not replaced
                 parsed_x = self.getValue(line, 'X')
@@ -735,7 +786,6 @@ class SmartZHop(Script):
                         # 시퀀스 리셋
                         in_travel_sequence = False
                         is_first_travel_after_retraction = False
-                    
                     processed_lines.append(line)
                     if parsed_x is not None: actual_current_x = parsed_x
                     if parsed_y is not None: actual_current_y = parsed_y
@@ -795,19 +845,21 @@ class SmartZHop(Script):
             # Z-hop 조건에 맞지 않으면 원본 라인들 그대로 추가
             for move in travel_moves:
                 processed_lines.append(move['line'])
-
     def calculate_slingshot_trajectory_v2(self, start_x, start_y, start_z, 
                                         target_x, target_y, distance, 
                                         max_zhop_height, zhop_speed, settings):
         """V2 3-stage 스마트 궤적 계산 (Percentage/Angle 모드 지원)"""
-          # 동적 높이 계산 (settings 전달)
+        # 동적 높이 계산 (settings 전달)
         dynamic_height = self.calculate_dynamic_height(distance, max_zhop_height, 
                                                      settings['min_zhop'], settings['max_distance'], settings)
         
-        trajectory_gcode = []        # M203 속도 제어 적용
-        speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
-        if speed_gcode:
-            trajectory_gcode.append(speed_gcode)
+        trajectory_gcode = []
+        
+        # M203 속도 제어 적용 (조건부: 속도 설정이 있고 원본 속도가 파싱된 경우만)
+        if zhop_speed > 0 and self.original_z_max_feedrate is not None:
+            speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
+            if speed_gcode:
+                trajectory_gcode.append(speed_gcode)
         
         if settings['trajectory_mode'] == 'angle':
             # 각도 기반 계산
@@ -856,7 +908,6 @@ class SmartZHop(Script):
             # 필요한 수평 거리가 전체 거리보다 크더라도 3단계 시스템으로 처리
             # 상승 구간과 하강 구간의 각도는 설정값 그대로 유지
             # 남은 거리는 수평 이동 구간에서 처리
-            
             # 안전장치: 각도 우선 모드에서도 최대 허용 높이 제한 적용
             max_allowed_height = settings.get('max_zhop_height', zhop_height)
             effective_zhop_height = min(zhop_height, max_allowed_height)
@@ -1149,13 +1200,13 @@ class SmartZHop(Script):
         # 동적 높이 계산
         dynamic_height = self.calculate_dynamic_height(total_distance, zhop_height, 
                                                      min_zhop, max_distance, slingshot_settings)
-        
         trajectory_gcode = []
         
-        # M203 속도 제어
-        speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
-        if speed_gcode:
-            trajectory_gcode.append(speed_gcode)
+        # M203 속도 제어 (조건부: 속도 설정이 있고 원본 속도가 파싱된 경우만)
+        if zhop_speed > 0 and self.original_z_max_feedrate is not None:
+            speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
+            if speed_gcode:
+                trajectory_gcode.append(speed_gcode)
         
         # 각도/퍼센티지 모드별 Z 높이 함수 생성
         if trajectory_mode == 'angle':
@@ -1273,7 +1324,7 @@ class SmartZHop(Script):
         if descent_angle >= 89.5:
             descent_horizontal = 0.0  
         else:
-            descent_horizontal = max_height / math.tan(descent_angle_rad)
+            descent_horizontal = max_height / math.tan(math.radians(descent_angle))
         
         # 3단계 구간 정의
         travel_distance = max(0, total_distance - ascent_horizontal - descent_horizontal)
