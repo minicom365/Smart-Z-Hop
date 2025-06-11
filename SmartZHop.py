@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Smart Z-Hop v2.0 - Complete Integration Edition
 Advanced Z-Hop post-processing script with ALL features from V1 and V2
@@ -801,7 +801,7 @@ class SmartZHop(Script):
                                processed_lines, travel_distance_threshold, zhop_height, 
                                zhop_speed, slingshot_settings, current_feedrate, 
                                is_first_travel_after_retraction):
-        """연속 travel move 시퀀스를 부드러운 연속 곡선으로 처리"""
+        """연속 travel move 시퀀스를 부드러운 연속 궤적으로 처리"""
         if not travel_moves:
             return
         
@@ -835,7 +835,7 @@ class SmartZHop(Script):
                       total_distance > travel_distance_threshold)
         
         if should_zhop:
-            # 연속 곡선 Z-hop 궤적 생성
+            # 연속 궤적 Z-hop 궤적 생성
             trajectory_gcode_lines = self.calculate_continuous_curve_trajectory(
                 start_x, start_y, start_z, path_segments, total_distance,
                 zhop_height, zhop_speed, slingshot_settings, current_feedrate
@@ -1189,7 +1189,7 @@ class SmartZHop(Script):
     def calculate_continuous_curve_trajectory(self, start_x, start_y, start_z, path_segments, 
                                             total_distance, zhop_height, zhop_speed, 
                                             slingshot_settings, current_feedrate):
-        """XY 경로 적분 기반 연속 곡선 Z-hop 궤적 계산"""
+        """XY 경로 적분 기반 연속 궤적 Z-hop 궤적 계산"""
         import math
         
         # 설정 추출
@@ -1347,7 +1347,7 @@ class SmartZHop(Script):
                 return max_height
             else:
                 # 하강 구간: max_height 유지 (안전을 위해 하강하지 않음)
-                # 연속 곡선 처리에서는 마지막에 별도로 Z축을 원래 높이로 복원
+                # 연속 궤적 처리에서는 마지막에 별도로 Z축을 원래 높이로 복원
                 return max_height
         
         return z_height_at_distance
@@ -1378,12 +1378,12 @@ class SmartZHop(Script):
                 return max_height
             else:
                 # 하강 구간: max_height 유지 (안전을 위해 하강하지 않음)
-                # 연속 곡선 처리에서는 마지막에 별도로 Z축을 원래 높이로 복원
+                # 연속 궤적 처리에서는 마지막에 별도로 Z축을 원래 높이로 복원
                 return max_height
         
         return z_height_at_distance
 
-    def subdivide_long_segment_for_zhop_boundaries(self, segment, start_distance, end_distance, 
+    def subdivide_long_segment_for_zhop_boundaries(self, segment, start_distance, end_distance,
                                                   z_height_function, total_distance, settings):
         """긴 구간을 Z-hop 경계에서 세분화하여 각도 일관성 보장"""
         import math
@@ -1589,8 +1589,8 @@ def test_slingshot_mode():
     print("Slingshot 모드 실행 완료 ✅")
 
 def test_v3_continuous_curve_demo():
-    """V3.0 연속 곡선 처리 데모"""
-    print("\n🔗 V3.0 연속 곡선 처리 데모")
+    """V3.0 연속 궤적 처리 데모"""
+    print("\n🔗 V3.0 연속 궤적 처리 데모")
     print("-" * 40)
     
     smart_zhop = SmartZHop()
@@ -1614,12 +1614,12 @@ def test_v3_continuous_curve_demo():
     
     result = smart_zhop.execute(continuous_demo)
     
-    print("\n✅ V3.0 연속 곡선 처리 결과:")
+    print("\n✅ V3.0 연속 궤적 처리 결과:")
     smart_lines = [line for line in result if "Smart" in line]
     for line in smart_lines:
         print(f"   🎯 {line}")
     
-    print(f"\n📊 처리 효과: 5개 개별 travel → {len(smart_lines)}개 연속 곡선")
+    print(f"\n📊 처리 효과: 5개 개별 travel → {len(smart_lines)}개 연속 궤적")
     print("🎉 톱니파 문제 해결! 부드러운 곡선으로 변환 완료!")
 
 # 메인 실행 블록
@@ -1634,11 +1634,11 @@ if __name__ == "__main__":
     test_traditional_mode()
     test_slingshot_mode()
     
-    # V3.0 연속 곡선 데모
+    # V3.0 연속 궤적 데모
     test_v3_continuous_curve_demo()
     
     print("\n" + "=" * 70)
     print("✨ Smart Z-Hop V3.0 모든 테스트 완료!")
-    print("🎯 톱니파 문제 해결 + 연속 곡선 처리 + 리트랙션 감지")
+    print("🎯 톱니파 문제 해결 + 연속 궤적 처리 + 리트랙션 감지")
     print("📋 python SmartZHop.py 명령으로 언제든 V3.0 기능을 테스트하세요!")
     print("🏆 3D 프린팅의 새로운 차원을 경험해보세요!")

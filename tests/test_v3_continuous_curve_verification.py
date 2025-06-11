@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Smart Z-Hop V3.0 연속 곡선 처리 전용 검증 테스트
+Smart Z-Hop V3.0 연속 궤적 처리 전용 검증 테스트
 
-🔬 V3.0 연속 곡선 처리 시스템 집중 검증:
+🔬 V3.0 연속 궤적 처리 시스템 집중 검증:
 1. 연속 travel move 감지 및 그룹화 알고리즘
 2. XY 경로 적분 기반 Z 높이 계산 시스템
 3. 톱니파 문제 완전 해결 확인
-4. 각도/퍼센티지 모드 연속 곡선 처리
+4. 각도/퍼센티지 모드 연속 궤적 처리
 5. 대용량 연속 이동 처리 성능 검증
 """
 
@@ -48,15 +48,15 @@ def test_sawtooth_problem_resolution():
     zhop = SmartZHop()
     result = zhop.execute(problematic_gcode)
     
-    print(f"\n✅ V3.0 연속 곡선 처리 결과:")
+    print(f"\n✅ V3.0 연속 궤적 처리 결과:")
     print(f"   • 입력: {len(problematic_gcode)}줄 → 출력: {len(result)}줄")
     
-    # 연속 곡선 처리 분석
+    # 연속 궤적 처리 분석
     smart_ascent = len([line for line in result if "Smart Ascent" in line])
     smart_travel = len([line for line in result if "Smart Travel" in line])
     smart_descent = len([line for line in result if "Smart Descent" in line])
     
-    print(f"\n🎯 연속 곡선 통계:")
+    print(f"\n🎯 연속 궤적 통계:")
     print(f"   • Smart Ascent: {smart_ascent}개")
     print(f"   • Smart Travel: {smart_travel}개")
     print(f"   • Smart Descent: {smart_descent}개")
@@ -165,7 +165,7 @@ def test_angle_vs_percentage_continuous():
             print(f"  {i}. {line}")
     
     # 각도 모드 테스트
-    print(f"\n🔸 각도 모드 연속 곡선 처리:")
+    print(f"\n🔸 각도 모드 연속 궤적 처리:")
     zhop_angle = SmartZHop()
     result_angle = zhop_angle.execute(test_scenario)
     
@@ -174,7 +174,7 @@ def test_angle_vs_percentage_continuous():
         print(f"   📐 {line}")
     
     # 퍼센티지 모드 테스트
-    print(f"\n🔹 퍼센티지 모드 연속 곡선 처리:")
+    print(f"\n🔹 퍼센티지 모드 연속 궤적 처리:")
     zhop_percent = SmartZHop()
     result_percent = zhop_percent.execute(test_scenario)
     
@@ -246,9 +246,9 @@ def test_large_scale_continuous_performance():
     return result
 
 if __name__ == "__main__":
-    print("🔬 Smart Z-Hop V3.0 연속 곡선 처리 전용 검증 테스트")
+    print("🔬 Smart Z-Hop V3.0 연속 궤적 처리 전용 검증 테스트")
     print("=" * 80)
-    print("🎯 V3.0의 핵심 혁신 기능인 연속 곡선 처리를 집중 검증합니다!")
+    print("🎯 V3.0의 핵심 혁신 기능인 연속 궤적 처리를 집중 검증합니다!")
     print("=" * 80)
     
     try:
@@ -265,9 +265,9 @@ if __name__ == "__main__":
         test_large_scale_continuous_performance()
         
         print("\n" + "=" * 80)
-        print("🏆 Smart Z-Hop V3.0 연속 곡선 처리 검증 완료!")
+        print("🏆 Smart Z-Hop V3.0 연속 궤적 처리 검증 완료!")
         print("=" * 80)
-        print("✨ V3.0 연속 곡선 처리 시스템이 완벽하게 작동합니다!")
+        print("✨ V3.0 연속 궤적 처리 시스템이 완벽하게 작동합니다!")
         print("🎯 톱니파 문제 완전 해결 + 부드러운 곡선 처리 달성!")
         print("⚡ 대용량 데이터도 빠르고 효율적으로 처리!")
         

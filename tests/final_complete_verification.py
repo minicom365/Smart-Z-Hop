@@ -106,7 +106,7 @@ def analyze_comprehensive_results(result, original_travels):
     smart_descent = len([line for line in result if "Smart Descent" in line])
     total_smart = smart_ascent + smart_travel + smart_descent
     
-    print(f"   🎯 연속 곡선 처리:")
+    print(f"   🎯 연속 궤적 처리:")
     print(f"      • Smart Ascent: {smart_ascent}개")
     print(f"      • Smart Travel: {smart_travel}개")
     print(f"      • Smart Descent: {smart_descent}개")

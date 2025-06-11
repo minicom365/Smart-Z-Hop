@@ -120,7 +120,7 @@ def test_continuous_travel_grouping():
     
     result = zhop.execute(test_gcode)
     
-    print(f"\n✅ V3.0 연속 곡선 처리 결과:")
+    print(f"\n✅ V3.0 연속 궤적 처리 결과:")
     for i, line in enumerate(result, 1):
         print(f"  {i}. {line}")
     
@@ -128,7 +128,7 @@ def test_continuous_travel_grouping():
     smart_lines = [line for line in result if "Smart" in line]
     original_travels = len([line for line in test_gcode if line.startswith("G0")])
     
-    print(f"\n🎯 V3.0 연속 곡선 효과:")
+    print(f"\n🎯 V3.0 연속 궤적 효과:")
     print(f"   • 원본 travel moves: {original_travels}개")
     print(f"   • V3.0 Smart 곡선: {len(smart_lines)}개")
     
