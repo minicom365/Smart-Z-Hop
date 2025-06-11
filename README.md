@@ -1,5 +1,9 @@
 # Smart Z-Hop V3.0
 
+![image](https://github.com/user-attachments/assets/1e02e4e5-6eed-4230-9360-62c340d0c604)
+![image](https://github.com/user-attachments/assets/6519c21a-836f-4e38-97e5-b93493f5f330)
+
+
 혁신적인 **연속 곡선 Z-hop** 시스템을 완성한 Cura 포스트 프로세싱 스크립트입니다.
 
 ## 🎯 핵심 기능
