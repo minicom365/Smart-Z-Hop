@@ -1596,8 +1596,8 @@ def test_slingshot_mode():
     print("Slingshot 모드 실행 완료 ✅")
 
 def test_v3_continuous_curve_demo():
-    """V3.0 연속 궤적 처리 데모"""
-    print("\n🔗 V3.0 연속 궤적 처리 데모")
+    """V3.1 연속 궤적 처리 데모"""
+    print("\n🔗 V3.1 연속 궤적 처리 데모")
     print("-" * 40)
     
     smart_zhop = SmartZHop()
@@ -1621,7 +1621,7 @@ def test_v3_continuous_curve_demo():
     
     result = smart_zhop.execute(continuous_demo)
     
-    print("\n✅ V3.0 연속 궤적 처리 결과:")
+    print("\n✅ V3.1 연속 궤적 처리 결과:")
     smart_lines = [line for line in result if "Smart" in line]
     for line in smart_lines:
         print(f"   🎯 {line}")
@@ -1685,7 +1685,7 @@ if __name__ == "__main__":
     # 개별 모드 테스트
     test_traditional_mode()
     test_slingshot_mode()
-      # V3.0 연속 궤적 데모
+      # V3.1 연속 궤적 데모
     test_v3_continuous_curve_demo()
     
     # 리트랙션 감지 테스트
@@ -1695,7 +1695,7 @@ if __name__ == "__main__":
     test_retraction_detection()
     
     print("\n" + "=" * 70)
-    print("✨ Smart Z-Hop V3.0 모든 테스트 완료!")
+    print("✨ Smart Z-Hop V3.1 모든 테스트 완료!")
     print("🎯 톱니파 문제 해결 + 연속 궤적 처리 + 리트랙션 감지")
-    print("📋 python SmartZHop.py 명령으로 언제든 V3.0 기능을 테스트하세요!")
+    print("📋 python SmartZHop.py 명령으로 언제든 V3.1 기능을 테스트하세요!")
     print("🏆 3D 프린팅의 새로운 차원을 경험해보세요!")

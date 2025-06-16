@@ -1,4 +1,4 @@
-# Smart Z-Hop V3.0 🚀
+# Smart Z-Hop V3.1 🚀
 
 <div align="center">
 
@@ -37,7 +37,7 @@
 **수직 상승/하강으로 인한 문제들:**
 ```
 ❌ 기존: ↕️ 수직 상승 → 🕷️ 거미줄 + 흔적 발생
-✅ V3.0: ↗️ 각도 제어 → ✨ 깔끔한 이동
+✅ V3.1: ↗️ 각도 제어 → ✨ 깔끔한 이동
 ```
 
 **주요 문제들:**
@@ -46,7 +46,7 @@
 - 🎯 **제어 불가**: 상승/하강 각도나 비율을 조절할 수 없음
 - ⚡ **비효율적**: 항상 동일한 패턴으로만 움직임
 
-## ✨ Smart Z-Hop V3.0의 혁신적 해결책
+## ✨ Smart Z-Hop V3.1의 혁신적 해결책
 
 - 🎯 **정밀 각도 제어**: 상승/하강 각도를 원하는 대로 설정 (10°~90°)
 - 📊 **퍼센티지 제어**: 상승 25%, 수평 50%, 하강 25% 등 구간별 비율 조정
@@ -134,7 +134,7 @@ python SmartZHop.py
 └── ⚡ 비효율 → 동일 패턴만 반복
 ```
 
-### 🟢 Smart Z-Hop V3.0 연속궤적
+### 🟢 Smart Z-Hop V3.1 연속궤적
 ```
 각도 모드: 시작점 ↗️30° 상승 → ➡️ 안전 수평 → ↘️45° 하강
 퍼센티지: 시작점 ↗️30%구간 → ➡️45%구간 → ↘️25%구간
@@ -147,7 +147,7 @@ python SmartZHop.py
 ```
 
 ### 📊 실제 개선 효과
-| 문제 | 기존 방식 | Smart V3.0 | 개선 결과 |
+| 문제 | 기존 방식 | Smart V3.1 | 개선 결과 |
 |------|-----------|------------|-----------|
 | 거미줄 발생 | 😰 자주 발생 | 😌 거의 없음 | **90% 감소** |
 | 표면 흔적 | 🤔 간헐적 발생 | 🌟 완전 차단 | **100% 제거** |
@@ -303,7 +303,7 @@ M203 Z4500 ; 원래 속도 복원
 
 ## 🎯 프로젝트 정보
 
-- **버전**: V3.0 (연속 궤적 시스템)
+- **버전**: V3.1 (연속 궤적 시스템)
 - **호환성**: Cura 4.0+ (대부분의 Marlin 펌웨어)
 - **라이선스**: MIT (자유롭게 사용 가능)
 - **언어**: Python (Cura Post-Processing Script)
@@ -317,7 +317,7 @@ M203 Z4500 ; 원래 속도 복원
 
 <div align="center">
 
-**🚀 Smart Z-Hop V3.0 - 3D 프린팅의 새로운 차원! 🚀**
+**🚀 Smart Z-Hop V3.1 - 3D 프린팅의 새로운 차원! 🚀**
 
 *더 빠르게, 더 조용하게, 더 완벽하게*
 
@@ -351,7 +351,7 @@ Existing print →  ▓▓▓▓▓     ▓▓▓▓▓  ← New area to print
 **Issues caused by vertical ascent/descent:**
 ```
 ❌ Traditional: ↕️ Vertical movement → 🕷️ Stringing + surface marks
-✅ V3.0: ↗️ Angle control → ✨ Clean movement
+✅ V3.1: ↗️ Angle control → ✨ Clean movement
 ```
 
 **Main Issues:**
@@ -360,7 +360,7 @@ Existing print →  ▓▓▓▓▓     ▓▓▓▓▓  ← New area to print
 - 🎯 **No Control**: Cannot adjust ascent/descent angles or ratios
 - ⚡ **Inefficient**: Always uses the same pattern
 
-## ✨ Smart Z-Hop V3.0's Revolutionary Solutions
+## ✨ Smart Z-Hop V3.1's Revolutionary Solutions
 
 - 🎯 **Precise Angle Control**: Set ascent/descent angles as desired (10°~90°)
 - 📊 **Percentage Control**: Adjust section ratios like ascent 25%, horizontal 50%, descent 25%
@@ -448,7 +448,7 @@ Problems:
 └── ⚡ Inefficient → Only repeats same pattern
 ```
 
-### 🟢 Smart Z-Hop V3.0 Continuous Trajectory
+### 🟢 Smart Z-Hop V3.1 Continuous Trajectory
 ```
 Angle Mode: Start point ↗️30° ascent → ➡️ Safe horizontal → ↘️45° descent
 Percentage: Start point ↗️30% section → ➡️45% section → ↘️25% section
@@ -461,7 +461,7 @@ Solution Effects:
 ```
 
 ### 📊 Actual Improvement Results
-| Issue | Traditional Method | Smart V3.0 | Improvement |
+| Issue | Traditional Method | Smart V3.1 | Improvement |
 |-------|-------------------|------------|-------------|
 | Stringing Occurrence | 😰 Frequent | 😌 Almost none | **90% Reduction** |
 | Surface Marks | 🤔 Occasional | 🌟 Complete prevention | **100% Elimination** |
@@ -618,7 +618,7 @@ M203 Z4500 ; Restore original speed
 
 ## 🎯 Project Information
 
-- **Version**: V3.0 (Continuous Trajectory System)
+- **Version**: V3.1 (Continuous Trajectory System)
 - **Compatibility**: Cura 4.0+ (Most Marlin firmware)
 - **License**: MIT (Free to use)
 - **Language**: Python (Cura Post-Processing Script)
@@ -632,7 +632,7 @@ M203 Z4500 ; Restore original speed
 
 <div align="center">
 
-**🚀 Smart Z-Hop V3.0 - A New Dimension in 3D Printing! 🚀**
+**🚀 Smart Z-Hop V3.1 - A New Dimension in 3D Printing! 🚀**
 
 *Faster, Quieter, More Perfect*
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Smart Z-Hop V3.0 기본 기능 검증 테스트
+Smart Z-Hop V3.1 기본 기능 검증 테스트
 
-🎯 V3.0 핵심 기능 검증:
+🎯 V3.1 핵심 기능 검증:
 - Traditional 모드 기본 Z-hop 동작 확인
 - Slingshot 모드 3-stage 궤적 확인  
 - 연속 travel move 감지 및 그룹화
@@ -91,8 +91,8 @@ def test_slingshot_basic():
     return result
 
 def test_continuous_travel_grouping():
-    """V3.0 연속 travel move 그룹화 테스트"""
-    print("\n🔗 V3.0 연속 travel move 그룹화 검증")
+    """V3.1 연속 travel move 그룹화 테스트"""
+    print("\n🔗 V3.1 연속 travel move 그룹화 검증")
     print("=" * 50)
     
     zhop = SmartZHop()
@@ -120,17 +120,17 @@ def test_continuous_travel_grouping():
     
     result = zhop.execute(test_gcode)
     
-    print(f"\n✅ V3.0 연속 궤적 처리 결과:")
+    print(f"\n✅ V3.1 연속 궤적 처리 결과:")
     for i, line in enumerate(result, 1):
         print(f"  {i}. {line}")
     
-    # V3.0 연속 처리 효과 분석
+    # V3.1 연속 처리 효과 분석
     smart_lines = [line for line in result if "Smart" in line]
     original_travels = len([line for line in test_gcode if line.startswith("G0")])
     
-    print(f"\n🎯 V3.0 연속 궤적 효과:")
+    print(f"\n🎯 V3.1 연속 궤적 효과:")
     print(f"   • 원본 travel moves: {original_travels}개")
-    print(f"   • V3.0 Smart 곡선: {len(smart_lines)}개")
+    print(f"   • V3.1 Smart 곡선: {len(smart_lines)}개")
     
     if len(smart_lines) < original_travels:
         print(f"   ✅ 톱니파 해결! {original_travels}개 → {len(smart_lines)}개 곡선으로 통합")
@@ -183,9 +183,9 @@ def test_retraction_detection():
     return result
 
 if __name__ == "__main__":
-    print("🎉 Smart Z-Hop V3.0 기본 기능 검증 테스트")
+    print("🎉 Smart Z-Hop V3.1 기본 기능 검증 테스트")
     print("=" * 70)
-    print("🚀 V3.0 모든 핵심 기능을 단계별로 검증합니다!")
+    print("🚀 V3.1 모든 핵심 기능을 단계별로 검증합니다!")
     print("=" * 70)
     
     try:
@@ -195,14 +195,14 @@ if __name__ == "__main__":
         # 2. Slingshot 모드 기본 테스트  
         test_slingshot_basic()
         
-        # 3. V3.0 연속 travel move 그룹화 테스트
+        # 3. V3.1 연속 travel move 그룹화 테스트
         test_continuous_travel_grouping()
         
         # 4. 리트랙션 감지 테스트
         test_retraction_detection()
         
         print("\n" + "=" * 70)
-        print("✨ Smart Z-Hop V3.0 기본 기능 검증 완료!")
+        print("✨ Smart Z-Hop V3.1 기본 기능 검증 완료!")
         print("🎯 모든 핵심 기능이 정상 작동합니다!")
         print("=" * 70)
         
