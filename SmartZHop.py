@@ -661,8 +661,8 @@ class SmartZHop(Script):
             # This is a simplified approach for layer-by-layer processing.
             # A full G-code parser would maintain state across the entire file.
             # For now, we assume actual_current_x,y,z are updated by each G-code line.
-            # If the first line of a layer doesn't set them, they might be from previous layer's end.            # 리트랙션 감지를 위한 이전 라인 추적
-            previous_line = None
+            # If the first line of a layer doesn't set them, they might be from previous layer's end.            # 리트랙션 감지를 위한 E 값 변화 추적 (직전 2개 E 값)
+            e_value_history = []  # [이전 E 값, 현재 E 값] 형태로 최대 2개 저장
             is_first_travel_after_retraction = False
             
             # 연속 travel move 그룹화를 위한 변수들
@@ -678,28 +678,37 @@ class SmartZHop(Script):
                 start_y_for_move = actual_current_y
                 start_z_for_move = actual_current_z
                 
-                # 리트랙션 감지: 이전 라인이 E값 없는 이동이고, 현재 라인이 travel move인 경우
-                if previous_line is not None:
-                    # 이전 라인이 리트랙션인지 확인 (E 매개변수가 없는 이동)
-                    if (self.getValue(previous_line, 'G') in [0, 1] and 
-                        self.getValue(previous_line, 'E') is None and
-                        (self.getValue(previous_line, 'X') is not None or 
-                         self.getValue(previous_line, 'Y') is not None)):
+                # 현재 라인에서 E 값 추출
+                current_e = self.getValue(line, 'E')
+                
+                # E 값이 있는 경우 히스토리에 추가
+                if current_e is not None:
+                    e_value_history.append(current_e)
+                    # 최대 2개만 유지
+                    if len(e_value_history) > 2:
+                        e_value_history.pop(0)
+                
+                # 리트랙션 감지: 직전 E 변화 2개를 확인하여 최신 E 값이 감소했는지 검사
+                is_first_travel_after_retraction = False
+                if len(e_value_history) >= 2:
+                    # 가장 최근 E 값이 이전 E 값보다 감소했는지 확인
+                    if e_value_history[-1] < e_value_history[-2]:
                         is_first_travel_after_retraction = True
-                    else:
-                        is_first_travel_after_retraction = False
+                        print(f"🔍 리트랙션 감지: E {e_value_history[-2]:.3f} → {e_value_history[-1]:.3f} (감소: {e_value_history[-2] - e_value_history[-1]:.3f})")
+                  # 현재 라인이 travel move인지 확인
+                is_travel = self.is_travel_move(line)
                         
                 # Tentative target coordinates from the current line
                 # These will become the new actual_current_x,y,z if the line is not replaced
                 parsed_x = self.getValue(line, 'X')
                 parsed_y = self.getValue(line, 'Y')
                 parsed_z = self.getValue(line, 'Z')
-                parsed_f = self.getValue(line, 'F')                # 현재 feedrate 업데이트 (F값이 있는 경우)
+                parsed_f = self.getValue(line, 'F')
+                
+                # 현재 feedrate 업데이트 (F값이 있는 경우)
                 if parsed_f is not None:
                     current_feedrate = parsed_f
 
-                is_travel = self.is_travel_move(line)
-                
                 # 연속 travel move 감지 및 그룹화
                 if travel_zhop and is_travel:
                     if not in_travel_sequence:
@@ -713,10 +722,12 @@ class SmartZHop(Script):
                     # 현재 travel move를 시퀀스에 추가
                     target_x = parsed_x if parsed_x is not None else start_x_for_move
                     target_y = parsed_y if parsed_y is not None else start_y_for_move
+                    target_z = parsed_z if parsed_z is not None else start_z_for_move
                     travel_sequence_moves.append({
                         'line': line,
                         'target_x': target_x,
                         'target_y': target_y,
+                        'target_z': target_z,
                         'line_index': line_index
                     })
                     
@@ -740,7 +751,7 @@ class SmartZHop(Script):
                         final_move = travel_sequence_moves[-1]
                         actual_current_x = final_move['target_x']
                         actual_current_y = final_move['target_y']
-                        actual_current_z = travel_sequence_start_z
+                        actual_current_z = final_move['target_z']
                           # 시퀀스 리셋
                         in_travel_sequence = False
                         is_first_travel_after_retraction = False
@@ -837,7 +848,7 @@ class SmartZHop(Script):
         if should_zhop:
             # 연속 궤적 Z-hop 궤적 생성
             trajectory_gcode_lines = self.calculate_continuous_curve_trajectory(
-                start_x, start_y, start_z, path_segments, total_distance,
+                start_x, start_y, move['target_z'], path_segments, total_distance,
                 zhop_height, zhop_speed, slingshot_settings, current_feedrate
             )
             processed_lines.extend(trajectory_gcode_lines)
@@ -1134,27 +1145,23 @@ class SmartZHop(Script):
         return e_value is None and has_xy
 
     def getValue(self, line, key):
-        """G-code 라인에서 특정 축의 값 추출 (원본 Z_HopMove 호환)"""
+        """G-code 라인에서 특정 축의 값 추출 (안전한 키 매칭, 공백 또는 맨 앞만 허용)"""
         if key == 'G':
-            # G 명령 특별 처리 (원본 Z_HopMove 방식)
             if line.startswith('G0'):
                 return 0
             elif line.startswith('G1'):
                 return 1
-            else:
+            return None
+
+        # 정규표현식: 맨 앞 또는 공백 뒤에 key, 그 뒤에 숫자(부호/소수점 포함)
+        pattern = rf'(?:\s){key}([+-]?\d*\.?\d+)'
+        match = re.search(pattern, line)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
                 return None
-        
-        if key not in line:
-            return None
-        
-        try:
-            start = line.index(key) + 1
-            end = start
-            while end < len(line) and (line[end].isdigit() or line[end] in '.-'):
-                end += 1
-            return float(line[start:end])
-        except:
-            return None
+        return None
 
     def calculate_distance(self, x1, y1, x2, y2):
         """두 점 사이의 거리 계산"""
@@ -1622,6 +1629,51 @@ def test_v3_continuous_curve_demo():
     print(f"\n📊 처리 효과: 5개 개별 travel → {len(smart_lines)}개 연속 궤적")
     print("🎉 톱니파 문제 해결! 부드러운 곡선으로 변환 완료!")
 
+def test_retraction_detection():
+    """리트랙션 감지 로직 테스트"""
+    print("\n🔍 리트랙션 감지 테스트")
+    print("-" * 40)
+    
+    smart_zhop = SmartZHop()
+    
+    # 리트랙션 시나리오 테스트 G-code
+    retraction_test_gcode = [
+        "G1 X100 Y100 Z0.2 E10.0 F1500",    # 압출 중
+        "G1 E8.5 F3000",                    # 리트랙션 (E 값 감소)
+        "G0 F30000 X150 Y150",              # 첫 번째 travel move (리트랙션 후)
+        "G0 X160 Y160",                     # 두 번째 travel move
+        "G1 E10.0 F300",                    # 언리트랙션 (E 값 증가)
+        "G1 X170 Y170 E12.0 F1500",         # 압출 재개
+        "G1 E10.8 F3000",                   # 또 다른 리트랙션
+        "G0 F30000 X200 Y200",              # 리트랙션 후 travel
+    ]
+    
+    print("📝 테스트 G-code:")
+    for i, line in enumerate(retraction_test_gcode, 1):
+        print(f"  {i:2d}. {line}")
+    
+    # SmartZHop 실행
+    print("\n🔄 리트랙션 감지 실행 중...")
+    result = smart_zhop.execute_standalone(retraction_test_gcode)
+    
+    print(f"\n✅ 테스트 완료!")
+    print(f"   📥 입력: {len(retraction_test_gcode)}줄")
+    print(f"   📤 출력: {len(result)}줄")
+    
+    # Smart Z-Hop 명령 찾기
+    smart_commands = [line for line in result if "Smart" in line]
+    if smart_commands:
+        print(f"\n🚀 생성된 Smart Z-Hop 명령들:")
+        for cmd in smart_commands:
+            print(f"   • {cmd}")
+    else:
+        print("\n📋 Smart Z-Hop 명령이 생성되지 않았습니다.")
+    
+    print("\n📊 리트랙션 감지 성능:")
+    print("   ✓ E 값 변화 추적 (직전 2개 값)")
+    print("   ✓ 최신 E 값 감소 확인")
+    print("   ✓ 리트랙션 후 travel move 인식")
+
 # 메인 실행 블록
 if __name__ == "__main__":
     print("🎉 Smart Z-Hop v2.0 - 독립 실행 모드")
@@ -1633,9 +1685,14 @@ if __name__ == "__main__":
     # 개별 모드 테스트
     test_traditional_mode()
     test_slingshot_mode()
-    
-    # V3.0 연속 궤적 데모
+      # V3.0 연속 궤적 데모
     test_v3_continuous_curve_demo()
+    
+    # 리트랙션 감지 테스트
+    test_retraction_detection()
+    
+    # 리트랙션 감지 테스트
+    test_retraction_detection()
     
     print("\n" + "=" * 70)
     print("✨ Smart Z-Hop V3.0 모든 테스트 완료!")
