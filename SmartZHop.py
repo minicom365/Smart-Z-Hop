@@ -311,7 +311,7 @@ class SmartZHop(Script):
                     "unit": "°",
                     "type": "float",
                     "default_value": 30.0,
-                    "minimum_value": 10.0,
+                    "minimum_value": 1.0,
                     "maximum_value": 90.0,
                     "enabled": "zhop_mode == 'slingshot' and slingshot_trajectory_mode == 'angle'"
                 },                "slingshot_descent_angle": {
@@ -320,7 +320,7 @@ class SmartZHop(Script):
                     "unit": "°",
                     "type": "float",
                     "default_value": 30.0,
-                    "minimum_value": 10.0,
+                    "minimum_value": 1.0,
                     "maximum_value": 90.0,
                     "enabled": "zhop_mode == 'slingshot' and slingshot_trajectory_mode == 'angle'"
                 },
