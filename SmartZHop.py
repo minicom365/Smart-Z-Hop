@@ -720,9 +720,9 @@ class SmartZHop(Script):
                         travel_sequence_moves = []
                     
                     # 현재 travel move를 시퀀스에 추가
-                    target_x = parsed_x if parsed_x is not None else start_x_for_move
-                    target_y = parsed_y if parsed_y is not None else start_y_for_move
-                    target_z = parsed_z if parsed_z is not None else start_z_for_move
+                    target_x = parsed_x if parsed_x is not None else actual_current_x
+                    target_y = parsed_y if parsed_y is not None else actual_current_y
+                    target_z = parsed_z if parsed_z is not None else actual_current_z
                     travel_sequence_moves.append({
                         'line': line,
                         'target_x': target_x,
@@ -731,12 +731,18 @@ class SmartZHop(Script):
                         'line_index': line_index
                     })
                     
+                    actual_current_x = target_x
+                    actual_current_y = target_y
+                    actual_current_z = target_z
+
                     # 다음 라인이 travel move인지 미리 확인
                     next_is_travel = False
                     if line_index + 1 < len(lines):
                         next_line = lines[line_index + 1]
                         next_is_travel = self.is_travel_move(next_line)
                     
+                    
+
                     # 다음 라인이 travel이 아니면 시퀀스 종료 및 처리
                     if not next_is_travel:
                         self.process_travel_sequence(
@@ -747,11 +753,6 @@ class SmartZHop(Script):
                             is_first_travel_after_retraction
                         )
                         
-                        # 마지막 이동의 목표 위치로 현재 위치 업데이트
-                        final_move = travel_sequence_moves[-1]
-                        actual_current_x = final_move['target_x']
-                        actual_current_y = final_move['target_y']
-                        actual_current_z = final_move['target_z']
                           # 시퀀스 리셋
                         in_travel_sequence = False
                         is_first_travel_after_retraction = False
@@ -781,8 +782,6 @@ class SmartZHop(Script):
                     # new_layer_z_match = re.search(r";LAYER:\d+\s*\n(?:G[01]\s+Z([\d\.]+))?", layer_gcode[lines.index(line):], re.MULTILINE)
                     # if new_layer_z_match and new_layer_z_match.group(1):
                     #     actual_current_z = float(new_layer_z_match.group(1))
-                    if parsed_z is not None: # If Z is on the ;LAYER: line itself
-                        actual_current_z = parsed_z
 
                 else: # Not a travel move for Z-hop, or not a layer change
                     # travel 시퀀스가 진행 중이었다면 여기서 강제 종료
@@ -820,9 +819,9 @@ class SmartZHop(Script):
         path_segments = []
         cumulative_distances = [0.0]  # 누적 거리 배열
         total_distance = 0.0
-        
-        prev_x, prev_y = start_x, start_y
-        
+
+        prev_x, prev_y, prev_z = start_x, start_y, start_z
+
         # 각 구간별 거리와 누적 거리 계산
         for move in travel_moves:
             segment_distance = self.calculate_distance(prev_x, prev_y, move['target_x'], move['target_y'])
@@ -832,15 +831,17 @@ class SmartZHop(Script):
             path_segments.append({
                 'start_x': prev_x,
                 'start_y': prev_y,
+                'start_z': prev_z,
                 'end_x': move['target_x'],
                 'end_y': move['target_y'],
+                'end_z': move['target_z'],
                 'distance': segment_distance,
                 'cumulative_distance': total_distance,
                 'original_line': move['line']
             })
-            
-            prev_x, prev_y = move['target_x'], move['target_y']
-        
+
+            prev_x, prev_y, prev_z = move['target_x'], move['target_y'], move['target_z']
+
         # Z-hop 적용 조건 확인
         should_zhop = (is_first_travel_after_retraction or 
                       total_distance > travel_distance_threshold)
@@ -848,7 +849,7 @@ class SmartZHop(Script):
         if should_zhop:
             # 연속 궤적 Z-hop 궤적 생성
             trajectory_gcode_lines = self.calculate_continuous_curve_trajectory(
-                start_x, start_y, move['target_z'], path_segments, total_distance,
+                start_x, start_y, start_z, path_segments, total_distance,
                 zhop_height, zhop_speed, slingshot_settings, current_feedrate
             )
             processed_lines.extend(trajectory_gcode_lines)
@@ -856,263 +857,7 @@ class SmartZHop(Script):
             # Z-hop 조건에 맞지 않으면 원본 라인들 그대로 추가
             for move in travel_moves:
                 processed_lines.append(move['line'])
-    def calculate_slingshot_trajectory_v2(self, start_x, start_y, start_z, 
-                                        target_x, target_y, distance, 
-                                        max_zhop_height, zhop_speed, settings):
-        """V2 3-stage 스마트 궤적 계산 (Percentage/Angle 모드 지원)"""
-        # 동적 높이 계산 (settings 전달)
-        dynamic_height = self.calculate_dynamic_height(distance, max_zhop_height, 
-                                                     settings['min_zhop'], settings['max_distance'], settings)
-        
-        trajectory_gcode = []
-        
-        # M203 속도 제어 적용 (조건부: 속도 설정이 있고 원본 속도가 파싱된 경우만)
-        if zhop_speed > 0 and self.original_z_max_feedrate is not None:
-            speed_gcode = self.get_zhop_speed_gcode(zhop_speed)
-            if speed_gcode:
-                trajectory_gcode.append(speed_gcode)
-        
-        if settings['trajectory_mode'] == 'angle':
-            # 각도 기반 계산
-            trajectory_gcode.extend(self.calculate_angle_based_trajectory(
-                start_x, start_y, start_z, target_x, target_y, 
-                dynamic_height, settings))
-        else:
-            # 퍼센티지 기반 계산 (3-stage)
-            trajectory_gcode.extend(self.calculate_percentage_based_trajectory(
-                start_x, start_y, start_z, target_x, target_y, 
-                dynamic_height, settings))
-        
-        # 속도 복원 (각 Z-hop이 독립적으로 완료되도록 보장)
-        restore_gcode = self.restore_original_speed_gcode()
-        if restore_gcode:
-            trajectory_gcode.append(restore_gcode)
-        
-        return trajectory_gcode
-    def calculate_angle_based_trajectory(self, start_x, start_y, start_z, 
-                                       target_x, target_y, zhop_height, settings):
-        """각도 기반 궤적 계산 (V2 기능 + 각도 우선 모드 지원 - 각도 절대 변경 안 함)"""
-        trajectory_gcode = []
-        
-        # 총 이동 거리
-        total_distance = self.calculate_distance(start_x, start_y, target_x, target_y)
-        # 설정된 각도 (각도 우선 모드에서는 절대 변경하지 않음)
-        ascent_angle = settings.get('ascent_angle', 45.0)
-        descent_angle = settings.get('descent_angle', 45.0)
-        ascent_angle_rad = math.radians(ascent_angle)
-        descent_angle_rad = math.radians(descent_angle)        # 각도 우선 모드에서 3단계 시스템 구현
-        if settings.get('angle_priority', False):
-            # 각도 우선: 설정된 각도를 절대 변경하지 않고 3단계 시스템으로 처리
-            if ascent_angle >= 89.5:  # 거의 수직
-                ascent_horizontal = 0.0
-            else:
-                # 최대 높이에서 설정 각도로 이동할 수 있는 수평 거리
-                ascent_horizontal = zhop_height / math.tan(ascent_angle_rad)
-            
-            if descent_angle >= 89.5:  # 거의 수직
-                descent_horizontal = 0.0
-            else:
-                # 최대 높이에서 설정 각도로 이동할 수 있는 수평 거리
-                descent_horizontal = zhop_height / math.tan(descent_angle_rad)
-            
-            # 각도 우선 모드: 각도를 절대 변경하지 않음
-            # 필요한 수평 거리가 전체 거리보다 크더라도 3단계 시스템으로 처리
-            # 상승 구간과 하강 구간의 각도는 설정값 그대로 유지
-            # 남은 거리는 수평 이동 구간에서 처리
-            # 안전장치: 각도 우선 모드에서도 최대 허용 높이 제한 적용
-            max_allowed_height = settings.get('max_zhop_height', zhop_height)
-            effective_zhop_height = min(zhop_height, max_allowed_height)
-            
-        else:
-            # 기본 모드: 기존 로직
-            effective_zhop_height = zhop_height
-            
-            if ascent_angle >= 89.5:
-                ascent_horizontal = 0.0
-            else:
-                ascent_horizontal = effective_zhop_height / math.tan(ascent_angle_rad)
                 
-            if descent_angle >= 89.5:
-                descent_horizontal = 0.0
-            else:
-                descent_horizontal = effective_zhop_height / math.tan(descent_angle_rad)
-            
-            # 무한대 처리
-            if ascent_horizontal == float('inf'): ascent_horizontal = total_distance / 2
-            if descent_horizontal == float('inf'): descent_horizontal = total_distance / 2
-
-        # 실제 이동 벡터 계산
-        delta_x = target_x - start_x
-        delta_y = target_y - start_y
-        
-        # 정규화된 방향 벡터
-        if total_distance > 0:
-            unit_x = delta_x / total_distance
-            unit_y = delta_y / total_distance
-        else:
-            unit_x = unit_y = 0
-
-        # F 값 결정 로직
-        current_f_val = settings.get('current_feedrate')
-        z_feed_val = settings.get('z_feedrate')
-        
-        feedrate_for_z_moves = None
-        if current_f_val is not None and current_f_val > 0:
-            feedrate_for_z_moves = current_f_val
-        elif z_feed_val is not None and z_feed_val > 0:
-            feedrate_for_z_moves = z_feed_val * 60
-        
-        f_command_z = f" F{feedrate_for_z_moves:.0f}" if feedrate_for_z_moves is not None else ""
-
-        feedrate_for_xy_moves = None
-        if current_f_val is not None and current_f_val > 0:
-            feedrate_for_xy_moves = current_f_val
-        
-        f_command_xy = f" F{feedrate_for_xy_moves:.0f}" if feedrate_for_xy_moves is not None else ""        # Stage 1: 상승 (설정된 각도 유지)
-        ascent_x = start_x + (ascent_horizontal * unit_x)
-        ascent_y = start_y + (ascent_horizontal * unit_y)
-        ascent_z = start_z + effective_zhop_height
-        
-        angle_info = f" (Angle: {ascent_angle:.1f}°)"
-        if settings.get('angle_priority', False):
-            angle_info = f" (Angle Priority: {ascent_angle:.1f}°)"
-            
-        # Stage 2: 수평 이동 (최대 높이에서)
-        remaining_distance = total_distance - ascent_horizontal - descent_horizontal
-        
-        # 각도 우선 모드에서 톱니파 형태인지 미리 확인
-        is_sawtooth_mode = (settings.get('angle_priority', False) and remaining_distance < 0)
-        
-        # 톱니파 모드가 아닐 때만 첫 번째 Smart Ascent 생성
-        if not is_sawtooth_mode:
-            trajectory_gcode.append(f"G1 X{ascent_x:.3f} Y{ascent_y:.3f} Z{ascent_z:.3f}{f_command_z} ; Smart Ascent{angle_info}")
-        
-        if settings.get('angle_priority', False):
-            # 각도 우선 모드: 남은 거리가 음수일 경우 상승선과 하강선의 교점에서 하강 (톱니파 형태)
-            if remaining_distance < 0:
-                # 상승선과 하강선의 교점 계산
-                # 상승선: start → 설정 각도로 무한히 연장
-                # 하강선: target → 설정 각도로 역방향 무한히 연장
-                
-                if abs(descent_angle - 90.0) < 0.1:  # 거의 수직 하강 (90도)
-                    # 하강이 수직이면 목표 X 위치에서 상승선과 만나는 지점
-                    intersection_x = target_x
-                    intersection_y = target_y
-                    
-                    # 상승선에서 교점까지의 거리 계산
-                    intersection_distance = math.sqrt(
-                        (intersection_x - start_x)**2 + (intersection_y - start_y)**2
-                    )
-                    
-                    # 상승 각도와 교점 거리를 이용한 Z 높이 계산
-                    if ascent_horizontal > 0:
-                        # 상승 각도와 교점 거리를 이용한 Z 높이 계산
-                        intersection_z = start_z + (intersection_distance * math.tan(ascent_angle_rad))
-                        # 최대 높이 제한 적용
-                        intersection_z = min(intersection_z, start_z + effective_zhop_height)
-                    else:
-                        intersection_z = start_z + effective_zhop_height
-                    
-                    # Stage 1: 상승 (교점까지)
-                    trajectory_gcode.append(f"G1 X{intersection_x:.3f} Y{intersection_y:.3f} Z{intersection_z:.3f}{f_command_z} ; Smart Ascent{angle_info}")
-                    
-                    # Stage 2: 수직 하강 (목표점으로) - 톱니파 완성
-                    descent_angle_info = f" (Angle: {descent_angle:.1f}°)"
-                    trajectory_gcode.append(f"G1 X{target_x:.3f} Y{target_y:.3f} Z{start_z:.3f}{f_command_z} ; Smart Descent{descent_angle_info}")
-                else:
-                    # 비수직 하강: 복잡한 교점 계산 (향후 확장 가능)
-                    # 현재는 기존 로직으로 폴백
-                    travel_distance = abs(remaining_distance)
-                    travel_x = ascent_x + (travel_distance * unit_x)
-                    travel_y = ascent_y + (travel_distance * unit_y)
-                    trajectory_gcode.append(f"G1 X{travel_x:.3f} Y{travel_y:.3f} Z{ascent_z:.3f}{f_command_xy} ; Smart Travel (Intersection Fallback)")
-                    
-                    # Stage 3: 하강
-                    descent_angle_info = f" (Angle: {descent_angle:.1f}°)"
-                    trajectory_gcode.append(f"G1 X{target_x:.3f} Y{target_y:.3f} Z{start_z:.3f}{f_command_z} ; Smart Descent{descent_angle_info}")
-            elif remaining_distance > 1e-6:
-                # 정상적인 수평 이동
-                travel_x = ascent_x + (remaining_distance * unit_x)
-                travel_y = ascent_y + (remaining_distance * unit_y)
-                trajectory_gcode.append(f"G1 X{travel_x:.3f} Y{travel_y:.3f} Z{ascent_z:.3f}{f_command_xy} ; Smart Travel (Max Height)")
-                
-                # Stage 3: 하강 (설정된 각도 유지)
-                descent_angle_info = f" (Angle: {descent_angle:.1f}°)"
-                trajectory_gcode.append(f"G1 X{target_x:.3f} Y{target_y:.3f} Z{start_z:.3f}{f_command_z} ; Smart Descent{descent_angle_info}")
-            else:
-                # 수평 이동 없이 바로 하강
-                descent_angle_info = f" (Angle: {descent_angle:.1f}°)"
-                trajectory_gcode.append(f"G1 X{target_x:.3f} Y{target_y:.3f} Z{start_z:.3f}{f_command_z} ; Smart Descent{descent_angle_info}")
-        else:
-            # 기본 모드: 기존 로직
-            if remaining_distance > 1e-6:
-                travel_x = ascent_x + (remaining_distance * unit_x)
-                travel_y = ascent_y + (remaining_distance * unit_y)
-                trajectory_gcode.append(f"G1 X{travel_x:.3f} Y{travel_y:.3f} Z{ascent_z:.3f}{f_command_xy} ; Smart Travel (Max Height)")
-                
-                # Stage 3: 하강 (설정된 각도 유지)
-                descent_angle_info = f" (Angle: {descent_angle:.1f}°)"
-                trajectory_gcode.append(f"G1 X{target_x:.3f} Y{target_y:.3f} Z{start_z:.3f}{f_command_z} ; Smart Descent{descent_angle_info}")
-            else:
-                # 수평 이동 없이 바로 하강
-                descent_angle_info = f" (Angle: {descent_angle:.1f}°)"
-                trajectory_gcode.append(f"G1 X{target_x:.3f} Y{target_y:.3f} Z{start_z:.3f}{f_command_z} ; Smart Descent{descent_angle_info}")
-        
-        return trajectory_gcode
-
-    def calculate_percentage_based_trajectory(self, start_x, start_y, start_z, 
-                                            target_x, target_y, zhop_height, settings):
-        """퍼센티지 기반 3-stage 궤적 계산 (V2 기능)"""
-        trajectory_gcode = []
-        
-        # 이동 벡터 계산
-        delta_x = target_x - start_x
-        delta_y = target_y - start_y
-        
-        # 각 단계별 비율 계산
-        ascent_ratio = settings.get('ascent_ratio', 25.0) / 100.0 # Default to 25%
-        descent_ratio = settings.get('descent_ratio', 25.0) / 100.0 # Default to 25%
-        
-        # travel_ratio는 나머지 비율로, 0보다 작아지지 않도록 보정
-        travel_at_height_ratio = max(0.0, 1.0 - ascent_ratio - descent_ratio)
-
-        # F 값 결정 로직 (Z축 이동 포함)
-        current_f_val = settings.get('current_feedrate')
-        z_feed_val = settings.get('z_feedrate')
-        
-        feedrate_for_z_moves = None
-        if current_f_val is not None and current_f_val > 0:
-            feedrate_for_z_moves = current_f_val
-        elif z_feed_val is not None and z_feed_val > 0:
-            feedrate_for_z_moves = z_feed_val * 60
-        
-        f_command_z = f" F{feedrate_for_z_moves:.0f}" if feedrate_for_z_moves is not None else ""
-
-        # F 값 결정 로직 (XY축 이동 전용)
-        feedrate_for_xy_moves = None
-        if current_f_val is not None and current_f_val > 0:
-            feedrate_for_xy_moves = current_f_val
-        
-        f_command_xy = f" F{feedrate_for_xy_moves:.0f}" if feedrate_for_xy_moves is not None else ""
-
-        # Stage 1: 상승 단계
-        ascent_x = start_x + (delta_x * ascent_ratio)
-        ascent_y = start_y + (delta_y * ascent_ratio)
-        ascent_z = start_z + zhop_height
-        trajectory_gcode.append(f"G1 X{ascent_x:.3f} Y{ascent_y:.3f} Z{ascent_z:.3f}{f_command_z} ; Smart Ascent ({settings.get('ascent_ratio', 25.0)}%)")
-        
-        # Stage 2: 수평 이동 단계
-        if travel_at_height_ratio > 1e-6: # 작은 오차 감안, 실제 수평 이동이 있을 경우에만 G-code 생성
-            travel_end_x = ascent_x + (delta_x * travel_at_height_ratio)
-            travel_end_y = ascent_y + (delta_y * travel_at_height_ratio)
-            # 수평 이동은 Z 높이를 유지 (ascent_z)
-            trajectory_gcode.append(f"G1 X{travel_end_x:.3f} Y{travel_end_y:.3f} Z{ascent_z:.3f}{f_command_xy} ; Smart Travel at height ({travel_at_height_ratio*100:.1f}%)")
-
-        # Stage 3: 하강 단계
-        # 하강 시작점은 travel_end_x, travel_end_y (수평이동이 없었다면 ascent_x, ascent_y) 이고 Z는 ascent_z.        # 최종 목적지는 target_x, target_y, start_z.
-        trajectory_gcode.append(f"G1 X{target_x:.3f} Y{target_y:.3f} Z{start_z:.3f}{f_command_z} ; Smart Descent ({settings.get('descent_ratio', 25.0)}%)")
-        
-        return trajectory_gcode
 
     def calculate_dynamic_height(self, distance, max_zhop_height, min_zhop, max_distance, settings=None):
         """거리 기반 동적 높이 계산 (각도 우선 모드 지원)"""
@@ -1230,7 +975,8 @@ class SmartZHop(Script):
         z_feed_val = slingshot_settings.get('z_feedrate')
         
         feedrate_for_moves = None
-        if current_f_val is not None and current_f_val > 0:        feedrate_for_moves = current_f_val * 60  # mm/s to mm/min
+        if current_f_val is not None and current_f_val > 0:
+            feedrate_for_moves = current_f_val * 60  # mm/s to mm/min
         elif z_feed_val is not None and z_feed_val > 0:
             feedrate_for_moves = z_feed_val * 60
         
@@ -1298,9 +1044,9 @@ class SmartZHop(Script):
         current_z = start_z + z_height_function(total_distance)
         
         # 현재 Z가 원래 높이보다 높다면 안전하게 하강
-        if current_z > start_z + 0.001:  # 0.001mm 이상 차이가 있을 때만
+        if abs(current_z - final_segment['end_z']) > 0.001:  # 0.001mm 이상 차이가 있을 때만
             trajectory_gcode.append(
-                f"G1 X{final_segment['end_x']:.3f} Y{final_segment['end_y']:.3f} Z{start_z:.3f}{f_command} "
+                f"G1 X{final_segment['end_x']:.3f} Y{final_segment['end_y']:.3f} Z{final_segment['end_z']:.3f}{f_command} "
                 f";Smart Z-Hop Complete (Safe Descent)"
             )
         
@@ -1596,8 +1342,8 @@ def test_slingshot_mode():
     print("Slingshot 모드 실행 완료 ✅")
 
 def test_v3_continuous_curve_demo():
-    """V3.1 연속 궤적 처리 데모"""
-    print("\n🔗 V3.1 연속 궤적 처리 데모")
+    """v3.2 연속 궤적 처리 데모"""
+    print("\n🔗 v3.2 연속 궤적 처리 데모")
     print("-" * 40)
     
     smart_zhop = SmartZHop()
@@ -1621,7 +1367,7 @@ def test_v3_continuous_curve_demo():
     
     result = smart_zhop.execute(continuous_demo)
     
-    print("\n✅ V3.1 연속 궤적 처리 결과:")
+    print("\n✅ v3.2 연속 궤적 처리 결과:")
     smart_lines = [line for line in result if "Smart" in line]
     for line in smart_lines:
         print(f"   🎯 {line}")
@@ -1685,7 +1431,7 @@ if __name__ == "__main__":
     # 개별 모드 테스트
     test_traditional_mode()
     test_slingshot_mode()
-      # V3.1 연속 궤적 데모
+      # v3.2 연속 궤적 데모
     test_v3_continuous_curve_demo()
     
     # 리트랙션 감지 테스트
@@ -1695,7 +1441,7 @@ if __name__ == "__main__":
     test_retraction_detection()
     
     print("\n" + "=" * 70)
-    print("✨ Smart Z-Hop V3.1 모든 테스트 완료!")
+    print("✨ Smart Z-Hop v3.2 모든 테스트 완료!")
     print("🎯 톱니파 문제 해결 + 연속 궤적 처리 + 리트랙션 감지")
-    print("📋 python SmartZHop.py 명령으로 언제든 V3.1 기능을 테스트하세요!")
+    print("📋 python SmartZHop.py 명령으로 언제든 v3.2 기능을 테스트하세요!")
     print("🏆 3D 프린팅의 새로운 차원을 경험해보세요!")

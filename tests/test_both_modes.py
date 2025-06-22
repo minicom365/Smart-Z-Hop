@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Smart Z-Hop V3.1 두 모드 완전 비교 테스트
+Smart Z-Hop v3.2 두 모드 완전 비교 테스트
 
 🎯 Traditional vs Slingshot 모드 완전 분석:
 - 기본 Z-hop 방식 차이점 명확 비교
-- V3.1 연속 궤적 처리 차이 분석
+- v3.2 연속 궤적 처리 차이 분석
 - 거리별 동적 처리 방식 비교
 - 성능 및 효율성 종합 평가
 - 실제 사용 시나리오별 추천 모드 분석
@@ -75,7 +75,7 @@ def compare_continuous_travel_handling():
     print(f"\n🔗 연속 Travel Move 처리 방식 비교")
     print("=" * 70)
     
-    # 연속 travel 시나리오 (V3.1 핵심 기능)
+    # 연속 travel 시나리오 (v3.2 핵심 기능)
     continuous_scenario = [
         "G1 X50 Y50 Z2.0 E30.0 F1500",     # 익스트루전 종료
         "G0 F30000 X55 Y52",               # travel 1 (5.39mm)
@@ -113,28 +113,28 @@ def compare_continuous_travel_handling():
             print(f"   {line}")
     
     # Slingshot 모드 연속 처리
-    print(f"\n🔴 Slingshot 모드 (V3.1 연속 궤적 처리):")
+    print(f"\n🔴 Slingshot 모드 (v3.2 연속 궤적 처리):")
     print("-" * 50)
     
     sling_zhop = SmartZHop()
     sling_result = sling_zhop.execute(continuous_scenario)
     
-    print("Slingshot V3.1 결과 (Smart 명령):")
+    print("Slingshot v3.2 결과 (Smart 명령):")
     for line in sling_result:
         if "Smart" in line or "M203" in line:
             print(f"   {line}")
     
-    # V3.1 연속 처리 효과 분석
+    # v3.2 연속 처리 효과 분석
     trad_moves = len([l for l in trad_result if l.startswith(("G0", "G1")) and "Z" in l])
     sling_smart = len([l for l in sling_result if "Smart" in l])
     
-    print(f"\n📈 V3.1 연속 처리 효과 비교:")
+    print(f"\n📈 v3.2 연속 처리 효과 비교:")
     print(f"   • Traditional: {trad_moves}개 개별 Z-hop (각 travel마다)")
-    print(f"   • Slingshot V3.1: {sling_smart}개 연속 궤적 (통합 처리)")
+    print(f"   • Slingshot v3.2: {sling_smart}개 연속 궤적 (통합 처리)")
     print(f"   • 효율성 개선: {((trad_moves - sling_smart) / trad_moves * 100):.1f}% 명령 감소")
     
     if sling_smart < trad_moves:
-        print(f"   ✅ V3.1 연속 궤적 효과 확인! 톱니파 → 부드러운 곡선")
+        print(f"   ✅ v3.2 연속 궤적 효과 확인! 톱니파 → 부드러운 곡선")
     
     return trad_result, sling_result
 
@@ -290,17 +290,17 @@ def recommend_usage_scenarios():
         },
         {
             "scenario": "복잡한 형상 (연속된 작은 디테일)",
-            "recommended": "Slingshot V3.1",
+            "recommended": "Slingshot v3.2",
             "reason": "연속 궤적 처리로 톱니파 문제 해결, 부드러운 움직임"
         },
         {
             "scenario": "대용량 파일 (긴 프린팅 시간)",
-            "recommended": "Slingshot V3.1", 
+            "recommended": "Slingshot v3.2", 
             "reason": "명령 최적화로 파일 크기 감소, 처리 시간 단축"
         },
         {
             "scenario": "정밀 프린팅 (높은 품질 요구)",
-            "recommended": "Slingshot V3.1",
+            "recommended": "Slingshot v3.2",
             "reason": "3-stage 궤적으로 더 정교한 Z-hop 제어"
         },
         {
@@ -316,7 +316,7 @@ def recommend_usage_scenarios():
         print(f"   💡 이유: {rec['reason']}")
 
 if __name__ == "__main__":
-    print("🎉 Smart Z-Hop V3.1 두 모드 완전 비교 분석")
+    print("🎉 Smart Z-Hop v3.2 두 모드 완전 비교 분석")
     print("=" * 80)
     print("⚖️ Traditional vs Slingshot 모드를 모든 관점에서 비교합니다!")
     print("=" * 80)
@@ -338,11 +338,11 @@ if __name__ == "__main__":
         recommend_usage_scenarios()
         
         print("\n" + "=" * 80)
-        print("✨ Smart Z-Hop V3.1 두 모드 완전 비교 완료!")
+        print("✨ Smart Z-Hop v3.2 두 모드 완전 비교 완료!")
         print("=" * 80)
         print("🎯 결론:")
         print("   • Traditional: 안정성과 호환성 우선")
-        print("   • Slingshot V3.1: 혁신적 연속 궤적 처리")
+        print("   • Slingshot v3.2: 혁신적 연속 궤적 처리")
         print("   • 선택 기준: 프린팅 복잡도와 품질 요구사항")
         print("⚡ 두 모드 모두 M203 속도 제어로 안전성 보장!")
         

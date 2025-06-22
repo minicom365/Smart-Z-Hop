@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Smart Z-Hop V3.1 최종 완성 검증 테스트
+Smart Z-Hop v3.2 최종 완성 검증 테스트
 
-🏆 V3.1 최종 완성 기능 종합 검증:
+🏆 v3.2 최종 완성 기능 종합 검증:
 1. ✅ 전체 시스템 통합 동작 확인
 2. ✅ 실제 프린팅 환경 완벽 재현
-3. ✅ 모든 V3.1 기능 동시 작동 검증
+3. ✅ 모든 v3.2 기능 동시 작동 검증
 4. ✅ 극한 상황 안정성 확인
 5. ✅ 성능 최적화 효과 측정
 6. ✅ 최종 사용자 경험 검증
 
-이 테스트는 Smart Z-Hop V3.1이 실제 프로덕션 환경에서
+이 테스트는 Smart Z-Hop v3.2이 실제 프로덕션 환경에서
 완벽하게 작동하는지 최종 검증합니다.
 """
 
@@ -83,7 +83,7 @@ def test_real_world_printing_scenario():
     zhop = SmartZHop()
     result = zhop.execute(real_printing_gcode)
     
-    print(f"\n✅ V3.1 통합 처리 결과:")
+    print(f"\n✅ v3.2 통합 처리 결과:")
     print(f"   📊 처리 결과: {len(real_printing_gcode)}줄 → {len(result)}줄")
     
     # 상세 분석
@@ -98,7 +98,7 @@ def test_real_world_printing_scenario():
 
 def analyze_comprehensive_results(result, original_travels):
     """종합 결과 상세 분석"""
-    print(f"\n📈 V3.1 종합 처리 결과 분석:")
+    print(f"\n📈 v3.2 종합 처리 결과 분석:")
     
     # Smart 명령 분석
     smart_ascent = len([line for line in result if "Smart Ascent" in line])
@@ -265,7 +265,7 @@ def test_production_performance():
     
     print(f"\n📊 대용량 최적화 효과:")
     print(f"   • 원본 travel moves: {original_travels:,}개")
-    print(f"   • V3.1 Smart 명령: {smart_commands:,}개")
+    print(f"   • v3.2 Smart 명령: {smart_commands:,}개")
     if original_travels > 0:
         reduction = ((original_travels - smart_commands) / original_travels * 100)
         print(f"   • 최적화 효과: {reduction:.1f}% 명령 감소")
@@ -332,9 +332,9 @@ def test_final_user_experience():
             print(f"   ⚠️ 사용자 경험: 확인 필요")
 
 if __name__ == "__main__":
-    print("🏆 Smart Z-Hop V3.1 최종 완성 검증 테스트")
+    print("🏆 Smart Z-Hop v3.2 최종 완성 검증 테스트")
     print("=" * 80)
-    print("🎯 모든 V3.1 기능을 통합하여 프로덕션 준비 상태를 검증합니다!")
+    print("🎯 모든 v3.2 기능을 통합하여 프로덕션 준비 상태를 검증합니다!")
     print("=" * 80)
     
     try:
@@ -351,7 +351,7 @@ if __name__ == "__main__":
         test_final_user_experience()
         
         print("\n" + "=" * 80)
-        print("🎉 Smart Z-Hop V3.1 최종 완성 검증 완료!")
+        print("🎉 Smart Z-Hop v3.2 최종 완성 검증 완료!")
         print("=" * 80)
         print("🏆 최종 검증 결과:")
         print("   ✅ 실제 프린팅 환경: 완벽 호환")
@@ -359,7 +359,7 @@ if __name__ == "__main__":
         print("   ✅ 프로덕션 성능: 대용량 처리 완료")
         print("   ✅ 사용자 경험: 기대 효과 달성")
         print()
-        print("🚀 Smart Z-Hop V3.1 - 프로덕션 준비 완료!")
+        print("🚀 Smart Z-Hop v3.2 - 프로덕션 준비 완료!")
         print("🎯 3D 프린팅의 새로운 혁신을 경험하세요!")
         
     except Exception as e:

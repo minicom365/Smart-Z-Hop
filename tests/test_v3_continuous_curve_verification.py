@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Smart Z-Hop V3.1 연속 궤적 처리 전용 검증 테스트
+Smart Z-Hop v3.2 연속 궤적 처리 전용 검증 테스트
 
-🔬 V3.1 연속 궤적 처리 시스템 집중 검증:
+🔬 v3.2 연속 궤적 처리 시스템 집중 검증:
 1. 연속 travel move 감지 및 그룹화 알고리즘
 2. XY 경로 적분 기반 Z 높이 계산 시스템
 3. 톱니파 문제 완전 해결 확인
@@ -48,7 +48,7 @@ def test_sawtooth_problem_resolution():
     zhop = SmartZHop()
     result = zhop.execute(problematic_gcode)
     
-    print(f"\n✅ V3.1 연속 궤적 처리 결과:")
+    print(f"\n✅ v3.2 연속 궤적 처리 결과:")
     print(f"   • 입력: {len(problematic_gcode)}줄 → 출력: {len(result)}줄")
     
     # 연속 궤적 처리 분석
@@ -237,7 +237,7 @@ def test_large_scale_continuous_performance():
     
     print(f"\n🎯 대용량 연속 처리 효과:")
     print(f"   • 원본 travel moves: {original_travels}개")
-    print(f"   • V3.1 Smart 곡선: {smart_commands}개")
+    print(f"   • v3.2 Smart 곡선: {smart_commands}개")
     print(f"   • 최적화 효과: {((original_travels-smart_commands)/original_travels*100):.1f}% 감소")
     
     if smart_commands < 10:  # 50개 → 10개 이하로 줄어들면 성공
@@ -246,9 +246,9 @@ def test_large_scale_continuous_performance():
     return result
 
 if __name__ == "__main__":
-    print("🔬 Smart Z-Hop V3.1 연속 궤적 처리 전용 검증 테스트")
+    print("🔬 Smart Z-Hop v3.2 연속 궤적 처리 전용 검증 테스트")
     print("=" * 80)
-    print("🎯 V3.1의 핵심 혁신 기능인 연속 궤적 처리를 집중 검증합니다!")
+    print("🎯 v3.2의 핵심 혁신 기능인 연속 궤적 처리를 집중 검증합니다!")
     print("=" * 80)
     
     try:
@@ -265,9 +265,9 @@ if __name__ == "__main__":
         test_large_scale_continuous_performance()
         
         print("\n" + "=" * 80)
-        print("🏆 Smart Z-Hop V3.1 연속 궤적 처리 검증 완료!")
+        print("🏆 Smart Z-Hop v3.2 연속 궤적 처리 검증 완료!")
         print("=" * 80)
-        print("✨ V3.1 연속 궤적 처리 시스템이 완벽하게 작동합니다!")
+        print("✨ v3.2 연속 궤적 처리 시스템이 완벽하게 작동합니다!")
         print("🎯 톱니파 문제 완전 해결 + 부드러운 곡선 처리 달성!")
         print("⚡ 대용량 데이터도 빠르고 효율적으로 처리!")
         
