@@ -28,6 +28,7 @@ Version: 2.0 Complete Integration Edition
 import re
 import math
 import locale
+from datetime import datetime
 
 # 조건부 Import: Cura 환경에서는 정상 Import, 독립 실행 시에는 Mock 클래스 사용
 try:
@@ -618,7 +619,7 @@ class SmartZHop(Script):
                                 tr_gcode += f"G0 Z{current_z:.2f};Smart Z-Hop Travel Down{speed_suffix}\n"
                                 tr_z_hop_saved = True
 
-                # 원본 방식: 저장된 G-code가 있으면 출력, 없으면 기본 라인 출력
+                # 원본 방식: 저장된 G코드가 있으면 출력, 없으면 기본 라인 출력
                 if layer_change_zhop and lc_z_hop_saved:
                     output_gcode += lc_gcode
                     lc_z_hop_saved = False
@@ -710,7 +711,7 @@ class SmartZHop(Script):
                     current_feedrate = parsed_f
 
                 # 연속 travel move 감지 및 그룹화
-                if travel_zhop and is_travel:
+                if travel_zhop and is_travel and not line.startswith(';'):
                     if not in_travel_sequence:
                         # 새로운 travel 시퀀스 시작
                         in_travel_sequence = True
@@ -899,7 +900,7 @@ class SmartZHop(Script):
             return None
 
         # 정규표현식: 맨 앞 또는 공백 뒤에 key, 그 뒤에 숫자(부호/소수점 포함)
-        pattern = rf'(?:\s){key}([+-]?\d*\.?\d+)'
+        pattern = rf'(?:G. .*){key}([+-]?\d*\.?\d+)'
         match = re.search(pattern, line)
         if match:
             try:
@@ -1420,28 +1421,185 @@ def test_retraction_detection():
     print("   ✓ 최신 E 값 감소 확인")
     print("   ✓ 리트랙션 후 travel move 인식")
 
+def test_z_change_logging(file_path=None, max_lines=100):
+    """
+    실제 G-code 파일에서 Z 변화를 상세히 로깅하는 테스트 함수
+    초기 비정상적인 Z 상승 문제를 진단하기 위해 사용
+    """
+    print("\n🔍 Z 변화 상세 로깅 테스트")
+    print("=" * 50)
+    
+    # 기본 파일 경로 설정
+    if file_path is None:
+        file_path = r"C:\Users\ms338\Documents\CE3E3V2_tmpclu26txa18650_batterie_holder(1).gcode"
+    
+    print(f"📁 분석 대상 파일: {file_path}")
+    print(f"📊 최대 분석 라인 수: {max_lines}")
+    
+    try:
+        # 파일 읽기
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        print(f"✅ 파일 로드 완료: 총 {len(lines)}줄")
+        
+        # Z 변화 추적 변수들
+        current_z = None
+        z_changes = []
+        line_count = 0
+        
+        print("\n📈 Z 변화 상세 로그:")
+        print("-" * 60)
+        print(f"{'Line':<6} {'G-code':<40} {'Z Value':<10} {'Z Change':<12} {'Type'}")
+        print("-" * 60)
+        
+        for i, line in enumerate(lines[:max_lines], 1):
+            line = line.strip()
+            if not line or line.startswith(';'):
+                continue
+                
+            line_count += 1
+            
+            # Z 값 추출
+            z_match = re.search(r'Z([-+]?\d*\.?\d+)', line, re.IGNORECASE)
+            if z_match:
+                new_z = float(z_match.group(1))
+                z_change = 0.0
+                change_type = "Initial"
+                
+                if current_z is not None:
+                    z_change = new_z - current_z
+                    if abs(z_change) > 0.001:  # 의미있는 변화만 기록
+                        if z_change > 0:
+                            change_type = "⬆️ UP"
+                        else:
+                            change_type = "⬇️ DOWN"
+                        
+                        # 비정상적인 큰 변화 감지
+
+
+
+                        if abs(z_change) > 5.0:
+                            change_type += " ⚠️ LARGE"
+                        elif abs(z_change) > 1.0:
+                            change_type += " 🔶 MEDIUM"
+                    else:
+                        change_type = "→ SAME"
+                
+                # 로그 출력
+                z_change_str = f"{z_change:+.3f}" if current_z is not None else "N/A"
+                print(f"{i:<6} {line[:38]:<40} {new_z:<10.3f} {z_change_str:<12} {change_type}")
+                
+                # Z 변화 기록
+                z_changes.append({
+                    'line_num': i,
+                    'line_content': line,
+                    'z_value': new_z,
+                    'z_change': z_change if current_z is not None else 0.0,
+                    'previous_z': current_z
+                })
+                
+                current_z = new_z
+        
+        print("-" * 60)
+        print(f"📊 Z 변화 통계:")
+        print(f"   • 총 Z 명령: {len(z_changes)}개")
+        
+        if z_changes:
+            z_values = [change['z_value'] for change in z_changes]
+            z_change_values = [change['z_change'] for change in z_changes[1:]]  # 첫 번째 제외
+            
+            print(f"   • Z 범위: {min(z_values):.3f} ~ {max(z_values):.3f} mm")
+            
+            if z_change_values:
+                print(f"   • 최대 상승: {max(z_change_values):.3f} mm")
+                print(f"   • 최대 하강: {min(z_change_values):.3f} mm")
+                
+                # 큰 변화들 찾기
+                large_changes = [change for change in z_changes[1:] if abs(change['z_change']) > 1.0]
+                if large_changes:
+                    print(f"\n⚠️ 큰 Z 변화 감지 ({len(large_changes)}개):")
+                    for change in large_changes[:5]:  # 처음 5개만 표시
+                        print(f"   Line {change['line_num']}: {change['z_change']:+.3f} mm")
+                        print(f"      {change['line_content']}")
+        
+        # 결과 파일로 저장
+        result_file = file_path.replace('.gcode', '_z_analysis.txt')
+        with open(result_file, 'w', encoding='utf-8') as f:
+            f.write(f"Z Change Analysis Report\n")
+            f.write(f"========================\n")
+            f.write(f"Source file: {file_path}\n")
+            f.write(f"Analysis date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Lines analyzed: {min(max_lines, len(lines))}\n\n")
+            
+            for change in z_changes:
+                f.write(f"Line {change['line_num']:4d}: Z={change['z_value']:8.3f} ")
+                if change['previous_z'] is not None:
+                    f.write(f"(Δ{change['z_change']:+.3f}) ")
+                f.write(f"| {change['line_content']}\n")
+        
+        print(f"\n💾 상세 분석 결과 저장됨: {result_file}")
+        
+    except FileNotFoundError:
+        print(f"❌ 파일을 찾을 수 없습니다: {file_path}")
+        print("📋 파일 경로를 확인하거나 다른 G-code 파일을 사용해주세요.")
+    except Exception as e:
+        print(f"❌ 오류 발생: {str(e)}")
+
+    print("   ✓ 최신 E 값 감소 확인")
+    print("   ✓ 리트랙션 후 travel move 인식")
+
 # 메인 실행 블록
 if __name__ == "__main__":
-    print("🎉 Smart Z-Hop v2.0 - 독립 실행 모드")
+    import sys
+    
+    print("🎉 Smart Z-Hop v2.0 - 독립 실행 모드 + Z 변화 분석")
     print("=" * 60)
     
-    # 기본 테스트 실행
-    run_smart_zhop_test()
-    
-    # 개별 모드 테스트
-    test_traditional_mode()
-    test_slingshot_mode()
-      # v3.2 연속 궤적 데모
-    test_v3_continuous_curve_demo()
-    
-    # 리트랙션 감지 테스트
-    test_retraction_detection()
-    
-    # 리트랙션 감지 테스트
-    test_retraction_detection()
-    
-    print("\n" + "=" * 70)
-    print("✨ Smart Z-Hop v3.2 모든 테스트 완료!")
-    print("🎯 톱니파 문제 해결 + 연속 궤적 처리 + 리트랙션 감지")
-    print("📋 python SmartZHop.py 명령으로 언제든 v3.2 기능을 테스트하세요!")
-    print("🏆 3D 프린팅의 새로운 차원을 경험해보세요!")
+    # 명령줄 인수 처리
+    if len(sys.argv) > 1:
+        command = sys.argv[1].lower()
+        
+        if command == 'z-log' or command == 'zlog':
+            # Z 변화 로깅 테스트
+            file_path = sys.argv[2] if len(sys.argv) > 2 else None
+            max_lines = int(sys.argv[3]) if len(sys.argv) > 3 else 100
+            test_z_change_logging(file_path, max_lines)
+            
+        elif command == 'help' or command == '-h':
+            print("\n📋 사용 가능한 명령어:")
+            print("  python SmartZHop.py                   - 전체 테스트 실행")
+            print("  python SmartZHop.py z-log             - Z 변화 로깅 (기본 파일)")
+            print("  python SmartZHop.py z-log [파일경로]    - 특정 파일 Z 변화 로깅")
+            print("  python SmartZHop.py z-log [파일경로] [라인수] - 라인 수 제한")
+            print("  python SmartZHop.py help              - 도움말")
+            sys.exit(0)
+            
+        else:
+            print(f"❌ 알 수 없는 명령어: {command}")
+            print("📋 'python SmartZHop.py help'로 사용법을 확인하세요.")
+            sys.exit(1)
+    else:
+        # 기본 테스트 실행
+        run_smart_zhop_test()
+        
+        # 개별 모드 테스트
+        test_traditional_mode()
+        test_slingshot_mode()
+        
+        # v3.2 연속 궤적 데모
+        test_v3_continuous_curve_demo()
+        
+        # 리트랙션 감지 테스트
+        test_retraction_detection()
+        
+        print("\n" + "=" * 70)
+        print("✨ Smart Z-Hop v2.0 모든 테스트 완료!")
+        print("🎯 톱니파 문제 해결 + 연속 궤적 처리 + 리트랙션 감지")
+        print("🔍 새로운 Z 변화 분석 기능 추가!")
+        print("")
+        print("📋 추가 명령어:")
+        print("   python SmartZHop.py z-log    - Z 변화 상세 분석")
+        print("   python SmartZHop.py help     - 도움말")
+        print("")
+        print("🏆 3D 프린팅의 새로운 차원을 경험해보세요!")
